@@ -1,0 +1,18 @@
+go-msx-penguin
+
+This is an unofficial, non-commercial fan project. It is not affiliated
+with, authorised by or endorsed by the rights holder of the original game.
+
+This repository contains only original source code. It does not contain
+or distribute the original ROM image, nor any graphics, sound, text or
+other data taken from it. Users must supply their own legally obtained
+copy of the ROM; the tools here extract the data the engine needs from it
+locally, at build time.
+
+The engine is a native reimplementation written in Go. It does not
+execute, emulate or include any of the original program code.
+
+All trademarks and copyrights in the original game belong to their
+respective owners. If you are a rights holder and have concerns about this
+project, please open an issue or contact the maintainer and it will be
+addressed promptly.

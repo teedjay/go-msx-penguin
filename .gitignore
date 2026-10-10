@@ -1,0 +1,12 @@
+# The rights holder's data: never commit any of it.
+*.rom
+assets/**/*.bin
+docs/listing.asm
+
+# Reference traces and VRAM dumps are ROM-derived; keep them in /tmp.
+*.trace
+*.vram
+
+# Local clutter
+.DS_Store
+/bin/

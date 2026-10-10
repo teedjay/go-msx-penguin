@@ -1,0 +1,32 @@
+# go-msx-penguin
+
+A native Go reimplementation of a 16KB MSX1 cartridge game (a penguin
+racing across the ice). Each routine of the original was read and
+rewritten as ordinary Go against a small hardware-abstraction layer. No
+Z80 code runs at runtime: this is a port, not an emulator.
+
+Status: early. See `docs/analysis.md` for what has been traced and
+verified, and `CLAUDE.md` for how the work is done.
+
+## Requirements
+
+- Go 1.27 or newer
+- Your own copy of the original cartridge ROM, saved in the repository root
+  as `Antarctic Adventure (1984) Konami [RC-701] [9196].rom`
+  (16384 bytes, SHA-1 `027b653a5c7b91256a124a2accdad2478b10770d`).
+- Optional, for verification only: openMSX with the bundled C-BIOS machines.
+
+## Legal
+
+This is an unofficial, non-commercial project, not affiliated with or
+endorsed by the rights holder of the original game.
+
+- **Distributed:** original Go source, tools, documentation, and
+  screenshots of this engine running.
+- **Not distributed:** the ROM, and any data extracted or decoded from it
+  (graphics, sound, text, tables, disassembly listings, reference traces).
+  The extraction tool rebuilds those locally from your own ROM; they are
+  excluded from version control.
+- The engine executes no original code.
+
+Rights holders with concerns are invited to open an issue. See `NOTICE`.
