@@ -24,93 +24,35 @@ each bug's address. See Phase 1, "The reference oracle", and Phase 5.
 
 ## This project
 
-Facts established so far. Confidence key as in Phase 4: **High** (traced
-instruction by instruction or confirmed), **Medium** (control flow clear,
-meaning inferred), **Low** (plausible guess). Move each fact into the
-analysis doc (`docs/analysis.md`) once that exists, and keep this section
-short.
+The ROM, its checksums, the state machine, VRAM map, compression format,
+asset inventory, verification log and the **Open issues** list live in
+[`docs/analysis.md`](docs/analysis.md). Read its open issues first. The
+essentials:
 
-### The ROM
+- ROM: `Antarctic Adventure (1984) Konami [RC-701] [9196].rom`, 16KB at
+  `$4000`, SHA-1 `027b653a5c7b91256a124a2accdad2478b10770d`. That filename
+  is the only place the title and publisher appear (Phase 0, rule 3).
+- Module path `go-msx-penguin`; local-only git repo, branch `main`.
+- The whole game runs in the VBlank interrupt (`$4045`) with a busy flag
+  (bit 0 of `$E005`). The tick is `$40A4` (input) + `$4107` (dispatch on
+  state `$E000`, 16 states). The oracle's tick start is `$4083`.
+- VRAM: colour `$0000`, sprite patterns `$1800`, patterns `$2000`, names
+  `$3800`, sprite attributes `$3B00` (confirmed by rendering).
+- Graphics are RLE (`$454C`, `internal/rle`); streams can share tails.
+- Toolchain: Go 1.27, openMSX 21 (Homebrew) with `C-BIOS_MSX1_JP`.
 
-| | |
-| --- | --- |
-| File a user must supply | `Antarctic Adventure (1984) Konami [RC-701] [9196].rom` (the only place the title and publisher appear; see Phase 0, rule 3) |
-| Size | 16384 bytes (16KB, plain cartridge mapped at `$4000-$7FFF`, no mapper) |
-| CRC32 | `6ac017b9` |
-| MD5 | `31620f841985e617f0b887684873ac3e` |
-| SHA-1 | `027b653a5c7b91256a124a2accdad2478b10770d` |
-| SHA-256 | `f1d1e7783e04b0193c986c56143850ee8c7bd766c382383b860f4785f032fb7b` |
-| Last non-padding byte | `$7E45` (everything after is `$00`/`$FF` fill; Medium) |
+### Commands
 
-Every tool must verify these checksums and warn on a mismatch. Every address
-in these notes is meaningless against a different dump.
+```bash
+go run ./cmd/disasm                 # regenerate docs/listing.asm (git-ignored)
+go run ./cmd/disasm -gaps           # unclaimed ranges and their referrers
+go run ./cmd/disasm -peek 4045-40A3 # linear decode, claims nothing
+scripts/refdump.sh /tmp/attract.trace 4000          # record the original
+go run ./cmd/vramview -trace /tmp/attract.trace -tick 1000 -o /tmp/t.png
+```
 
-### Repo and module
-
-- Repo / module path: `go-msx-penguin` (local-only, bare name). Generic on
-  purpose: no title or publisher in the repo name, module path, window title
-  or any heading.
-- The directory is **not yet a git repository**. The first commit must
-  contain `.gitignore` (with `*.rom`, `assets/**/*.bin`, `docs/listing.asm`),
-  `NOTICE`, a README with a Legal section, and `go.mod`, before any code.
-- Toolchain found on this machine: Go 1.27 (`/opt/homebrew/bin/go`),
-  openMSX (`/opt/homebrew/bin/openmsx`). Check that the C-BIOS machines
-  (`C-BIOS_MSX1_JP` for 60Hz) are present before building the oracle.
-
-### Boot path and frame structure (from a first hex read; confirm with the disassembler)
-
-- Header: `AB`, INIT = `$4010`, no STATEMENT/DEVICE/TEXT. (High)
-- INIT `$4010`: `DI`, `IM 1`, installs `JP $4045` in the `H.KEYI` hook
-  (`$FD9A`), `LD SP,$E400`, clears `$E000-$E7FF` with `LDIR`, sets
-  `$E005`=1, `CALL $447A`, then `DI`, clears `$E005`, sets `$E000`=1,
-  `CALL RDVDP` (`$013E`), `EI`, **`JR $`**. (High for the bytes, Medium for
-  roles.)
-- **The whole game runs inside the interrupt.** Handler `$4045`: saves
-  registers, `DI`, `CALL RDVDP`, then if `$E000`≠0 calls `$79EA` (Medium:
-  per-interrupt work, likely the sound driver), checks `$E000` against `$0C`
-  and `$E140`/`$E142`, … then tests **bit 0 of `$E005` as a busy flag**: if
-  clear it sets it, `EI`, calls `$40A4` and `$4107` (Medium: the game tick),
-  `DI`, clears it. So a tick that runs longer than a frame makes the next
-  interrupts do the per-interrupt work only. Phase 5 "Tick pacing" applies
-  from day one.
-- Candidate top-level state byte: `$E000` (Medium; compared against `$0C`,
-  so probably at least 12 states). Candidate tick entry for the oracle
-  breakpoint: the instruction after the busy-flag set/`EI` in `$4045`
-  (`CALL $40A4` at `$4083`); confirm from the listing.
-- RAM in use: `$E000-$E7FF` is cleared at boot; stack top `$E400`. Exclude
-  the stack area (`$E3xx` downwards, confirm depth) from trace comparison.
-
-### VDP
-
-- R0-R7 come from an 8-byte table at `$44BF`, copied to RAM `$E038-$E03F`
-  and written via BIOS `WRTVDP` at `$44B6` (High for the bytes):
-  `02 E2 0E 7F 07 76 03 E1`.
-- Derived layout (Medium until one pattern+colour pair is composited):
-  Screen 2 (graphics II), 16x16 sprites, display and VBlank IRQ on;
-  **colour table `$0000`, patterns `$2000`, name table `$3800`, sprite
-  patterns `$1800`, sprite attributes `$3B00`**, backdrop colour 1. Same
-  non-default layout as both previous projects. The RAM shadow at `$E038`
-  suggests registers (likely R1) change later; find those writes.
-- The ROM reads the VDP port bytes at `$0006` (`$48BF`) and `$0007`
-  (`$48CD`) and writes with `OUT (C),A` (8 sites) and `OUTI` (`$6F33`,
-  `$7556`). No direct `OUT ($98)`.
-- BIOS calls seen: `WRTVDP $0047`, `SETWRT $0053`, `SETRD $0050`,
-  `WRTPSG $0093` (6), `RDPSG $0096` (2), `JP $00C2` (2; not a BIOS entry point, probably a false positive of the byte scan), `RDVDP
-  $013E`. Classify each from the listing, not from this byte scan (Low).
-- No `LD A,R` sites found by byte scan, so possibly no hardware entropy;
-  confirm in the listing and find whatever the game uses instead. (Low)
-- PSG is driven only through the BIOS (`WRTPSG`), no direct `OUT ($A0)`.
-
-### Open issues
-
-- Everything above is from a hex/byte-pattern read, not from a disassembly.
-  Promote to High only once traced in the listing.
-- Confirm what `$40A4` and `$4107` are and which one is the tick body.
-- Confirm `$79EA` is the per-interrupt sound driver, and whether game logic
-  reads its RAM (then it must be ported early; see Phase 4).
-- Find the input path (keyboard matrix and/or joystick via BIOS `GTSTCK`/
-  `GTTRIG` or the PSG ports).
-- Find whether graphics are compressed.
+`docs/disasm.cfg` records confirmed entries, labels, the `$409A`
+trampoline and declared data; re-run `cmd/disasm` after editing it.
 
 ---
 
