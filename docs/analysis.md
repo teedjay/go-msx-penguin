@@ -17,10 +17,14 @@ clear, meaning inferred), **Low** (plausible guess).
   arrive during a long tick run this work mid-tick in the original; the
   lockstep comparator can only run it between ticks. Expect possible
   differences on multi-frame ticks. (Medium)
-- **Ported so far:** boot, the interrupt handler, input, the tick
-  dispatcher, `$4413`, states 1-6, the sound driver, `$4C98`, `$464C`.
-  Not yet ported: states 0 and 7-15 and everything they call (state 7 at
-  `$4180` is the first the attract trace reaches, at tick 458).
+- **Everything reachable is ported** (3121 instructions). Verified by
+  the attract trace: boot, states 1-7, 9, 10, 11 (demo branch), 15, the
+  demo game, sound, per-interrupt work. **Translated but not yet verified
+  by any trace:** live play (state 11's play branch, joystick and keyboard
+  input), the real-game start (state 8), time out (12, 13), stage clear
+  (14), the fish sprites (`$775F`, live play only), and any path the demo
+  does not happen to reach (falls, knocks, wind, fish pickup, scoring).
+  Needs scripted-input traces (`-keys`) and a human playing.
 - INIT takes 2 interrupts under C-BIOS. Real MSX BIOS routines may give a
   different count; the frontend assumes 2. (Low)
 - `$79EA` is presumed to be the sound driver (per interrupt, when state ≠
@@ -171,6 +175,30 @@ text via `$4583` from `$57DE`, `$5793`, `$57D3`, `$5756`, `$5785`.
   The comparator was shown to fail: one flipped RAM byte at tick 200 and
   one flipped VRAM byte at tick 300 were each reported at that tick and
   address.
+
+- 2026-10-10: after porting states 7-15: **all 4000 ticks of the attract
+  trace match**, including the 1885-tick demo game and the return to
+  state 1. Two manifest gaps showed up first as `ROMByte` panics, both
+  genuine original behaviour: the last sound's `$FF` stop byte is `$7E46`,
+  the first byte of the fill; and the demo input reader runs past its
+  table into the code bytes at `$5834-$5835` (the trace shows `$E0EC`
+  reaching `$5836`). Comparator re-proven at tick 1500 (demo play).
+
+## Corrections
+
+- 2026-10-10: `$49B6-$49C8` was listed as data. It is four 4-byte code
+  stubs reached by `JP (HL)` at `$49B5` (cursor moves for the stage map
+  route). Now disassembler entries; removed from the manifest.
+- 2026-10-10: `$7E46` is not only fill: it is the stop byte of the last
+  sound. The `data_7AF1` entry now includes it.
+
+## Original quirks kept
+
+- `$4D90`: on a miss, the jump-collision scan advances by the leftover
+  comparison result instead of the 5 bytes left in the object record.
+- `$4E50`: the knocked-aside offsets table is addressed from `$4EC1`, a
+  code byte; the index starts at 1, so the code byte is never read.
+- Demo input reads two code bytes (`$5834-$5835`) at the end of the demo.
 
 ## Dead code
 

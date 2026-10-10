@@ -25,6 +25,9 @@ var stills = []struct {
 }{
 	{"01-logo", 60},
 	{"02-title", 300},
+	{"03-stage-map", 600},
+	{"04-demo-play", 1100},
+	{"05-demo-play", 1700},
 }
 
 func main() {

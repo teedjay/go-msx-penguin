@@ -144,10 +144,24 @@ func (c *Console) tick4107() {
 		c.state5()
 	case 6:
 		c.state6()
-	default:
-		addrs := [16]uint16{0x4134, 0x4135, 0x4146, 0x4158, 0x4163, 0x4171, 0x4179, 0x4180,
-			0x41CF, 0x423B, 0x427D, 0x4296, 0x42BC, 0x42E1, 0x42F2, 0x48DD}
-		c.unported(addrs[c.RAM[0x000]&0x0F]) // TODO: not yet ported
+	case 7:
+		c.state7()
+	case 8:
+		c.state8()
+	case 9:
+		c.state9()
+	case 10:
+		c.state10()
+	case 11:
+		c.state11()
+	case 12:
+		c.state12()
+	case 13:
+		c.state13()
+	case 14:
+		c.state14()
+	case 15:
+		c.state15()
 	}
 }
 

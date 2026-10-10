@@ -94,6 +94,14 @@ func (c *Console) upd464C() {
 	if c.RAM[0x003]&0x3F != 0 {
 		return
 	}
+	c.timeDec(1)
+}
+
+// timeDec counts the BCD timer at $E0E3 down by one and redraws it. With
+// cc = 1 (the per-interrupt path) it sounds $09 when the time drops below
+// 11; $43D1 enters with cc = 0, so DEC C never reaches 0 there and the
+// sound never plays on that path. Ported from $4665-$4692 (High).
+func (c *Console) timeDec(cc byte) {
 	lo, carry := subDAA(c.RAM[0x0E3], 1)
 	c.RAM[0x0E3] = lo
 	hi := c.RAM[0x0E4]
@@ -102,7 +110,10 @@ func (c *Console) upd464C() {
 		c.RAM[0x0E4] = hi
 	}
 	if hi == 0 && c.RAM[0x0E3] < 0x11 {
-		c.startSound(0x09) // DEC C from 1 always reaches 0 here
+		cc--
+		if cc == 0 {
+			c.startSound(0x09)
+		}
 	}
 	c.printTime()
 }
