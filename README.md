@@ -16,6 +16,16 @@ verified, and `CLAUDE.md` for how the work is done.
   (16384 bytes, SHA-1 `027b653a5c7b91256a124a2accdad2478b10770d`).
 - Optional, for verification only: openMSX with the bundled C-BIOS machines.
 
+## Building
+
+```bash
+go run ./cmd/extract          # rebuild assets/ from your ROM (git-ignored)
+go build ./... && go test ./...
+```
+
+The `assets` package embeds the extracted files, so run `cmd/extract`
+before building anything else.
+
 ## Legal
 
 This is an unofficial, non-commercial project, not affiliated with or

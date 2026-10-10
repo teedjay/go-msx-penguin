@@ -155,6 +155,11 @@ text via `$4583` from `$57DE`, `$5793`, `$57D3`, `$5756`, `$5785`.
 - 2026-10-10: attract trace, 4000 ticks from power-on (C-BIOS_MSX1_JP).
   Rendering ticks 50, 200 and 1000 through `internal/msxrender` gave the
   logo, the title screen and demo gameplay with correct text and sprites.
+- 2026-10-10: the five common-graphics RLE manifest entries, assembled as
+  `$5834` writes them, equal the original's VRAM after the state 1 load
+  (trace record 1) in all three thirds: colour `$2F0-$6FF` (1040 bytes)
+  and patterns `$2000-$26FF` (1792 bytes). `extract -check` shown to fail
+  on a one-byte change.
 
 ## Dead code
 
