@@ -15,13 +15,18 @@ const (
 	RAMBase  = 0xE000
 	RAMSize  = 0x800
 	VRAMSize = 0x4000
-	recSize  = 4 + 4 + 4 + 8 + 16 + RAMSize + VRAMSize
+	MaxIRQs  = 64
+	recSize  = 4 + 4 + 4 + 4 + 4*MaxIRQs + 8 + 16 + RAMSize + VRAMSize
 )
 
 // Record is the original's state at the start of one game tick.
 type Record struct {
 	Tick uint32
 	IRQs uint32 // interrupts taken since boot, at this tick start
+	// Offsets has one entry per interrupt since the previous tick start
+	// (the last starts this tick): the VRAM writes the previous tick had
+	// made when it arrived.
+	Offsets []int
 	Regs [8]byte
 	PSG  [16]byte
 	RAM  [RAMSize]byte // $E000-$E7FF
@@ -70,7 +75,15 @@ func (r *Reader) Next(rec *Record) error {
 	}
 	rec.Tick = binary.LittleEndian.Uint32(buf[4:])
 	rec.IRQs = binary.LittleEndian.Uint32(buf[8:])
-	o := 12
+	n := int(binary.LittleEndian.Uint32(buf[12:]))
+	if n > MaxIRQs {
+		return fmt.Errorf("reftrace: %d interrupts in one record", n)
+	}
+	rec.Offsets = rec.Offsets[:0]
+	for i := 0; i < n; i++ {
+		rec.Offsets = append(rec.Offsets, int(binary.LittleEndian.Uint32(buf[16+4*i:])))
+	}
+	o := 16 + 4*MaxIRQs
 	o += copy(rec.Regs[:], buf[o:])
 	o += copy(rec.PSG[:], buf[o:])
 	o += copy(rec.RAM[:], buf[o:])

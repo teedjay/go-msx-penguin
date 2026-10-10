@@ -7,6 +7,14 @@ clear, meaning inferred), **Low** (plausible guess).
 
 ## Open issues
 
+- **Next bug to chase (2026-10-10):** keyboard-play trace
+  (`go run ./cmd/keygen -seed 1 -ticks 8000`) matches for ticks 0-1163,
+  including the real-game start and ~960 ticks of live play. At tick 1164
+  the port's `collide4D6B` reads `$4DA7` (past the `$4D9D` table, in code)
+  and panics. A read watchpoint on `$4DA7-$4DAA` in openMSX logged no data
+  read there by the original, so this is probably a port bug in that tick
+  (suspect the `$4D90` pointer quirk or the object kind at +1). Unconfirmed:
+  first check that the watchpoint probe works at all.
 - **Tick pacing.** Load ticks take 14 frames in the original (8 such ticks
   in a 4000-tick attract trace, all other ticks 1 frame). Decide how the
   playable frontend models this; the comparator handles it already by

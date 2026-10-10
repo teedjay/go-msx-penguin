@@ -37,6 +37,11 @@ type Console struct {
 	Unported string
 
 	vaddr uint16 // VDP address pointer
+
+	// Nested interrupt delivery for lockstep runs (see TickNested).
+	vwrites  int   // VRAM data writes since the tick started
+	irqSched []int // vwrites values at which nested interrupts arrive
+	inIRQ    bool
 }
 
 // New returns a powered-on console with no keys pressed.
@@ -135,6 +140,10 @@ func (c *Console) vsetwr(de uint16) { c.vaddr = de & 0x3FFF }
 func (c *Console) vout(v byte) {
 	c.VRAM[c.vaddr&0x3FFF] = v
 	c.vaddr = (c.vaddr + 1) & 0x3FFF
+	c.vwrites++
+	if c.irqSched != nil {
+		c.deliver()
+	}
 }
 
 // vwrbyte writes A to VRAM[DE]. Ported from $48A5-$48AD.

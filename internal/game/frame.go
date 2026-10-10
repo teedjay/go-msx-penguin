@@ -1,5 +1,7 @@
 package game
 
+import "fmt"
+
 // Boot runs the cartridge INIT. Ported from $4010-$4042 (High).
 //
 // initIRQs is the number of interrupts the original takes during INIT:
@@ -84,6 +86,42 @@ func (c *Console) PerInterrupt() bool {
 func (c *Console) Tick() {
 	c.readInput()
 	c.tick4107()
+}
+
+// TickNested runs one tick with the interrupts that arrived during it in
+// the original delivered where they arrived. sched lists, in order, the
+// number of VRAM writes the tick had made when each arrived. The
+// original's VRAM write sequences run with interrupts disabled and
+// re-enable them right after their last write, so each interrupt is run
+// immediately after the write that brings the count to its value (one at
+// 0 runs before the tick). This also reproduces what the original does
+// when the interrupt's own VRAM writes move the VDP address under an RLE
+// stream that runs with interrupts enabled. It returns an error when the
+// port's tick makes fewer writes than the schedule needs.
+func (c *Console) TickNested(sched []int) error {
+	c.vwrites = 0
+	c.irqSched = sched
+	c.deliver()
+	c.Tick()
+	c.deliver()
+	left := c.irqSched
+	c.irqSched = nil
+	if len(left) > 0 {
+		return fmt.Errorf("tick made %d VRAM writes; %d nested interrupts at %v not delivered", c.vwrites, len(left), left)
+	}
+	return nil
+}
+
+// deliver runs the scheduled nested interrupts due at the current VRAM
+// write count. The handler runs with interrupts disabled, so writes made
+// by a delivered interrupt never deliver another from inside it.
+func (c *Console) deliver() {
+	for !c.inIRQ && len(c.irqSched) > 0 && c.irqSched[0] <= c.vwrites {
+		c.irqSched = c.irqSched[1:]
+		c.inIRQ = true
+		c.PerInterrupt()
+		c.inIRQ = false
+	}
 }
 
 // EndTick clears the busy flag. Ported from $4089-$408E.

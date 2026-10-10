@@ -4,10 +4,11 @@
 //	go run ./cmd/refcompare -trace /tmp/attract.trace
 //	go run ./cmd/refcompare -trace /tmp/play.trace -keys /tmp/play.keys
 //
-// For each record: the interrupts the original took since the previous
-// tick start are replayed (all but the last nested in the previous tick,
-// with the busy flag set), then the port's RAM, VRAM, VDP and PSG
-// registers are compared with the record, then the port runs the tick.
+// For each record: the port runs the previous tick, delivering the
+// interrupts the original took during it at the same point (counted in
+// VRAM writes, see game.TickNested); then the interrupt that starts this
+// tick; then the port's RAM, VRAM, VDP and PSG registers are compared with
+// the record.
 package main
 
 import (
@@ -55,11 +56,19 @@ func main() {
 		}
 		d := int(rec.IRQs - prev)
 		prev = rec.IRQs
-		if d < 1 {
-			fail(n, c, "record has %d interrupts since the previous tick", d)
+		if d < 1 || d != len(rec.Offsets) {
+			fail(n, c, "record has %d interrupts since the previous tick and %d offsets", d, len(rec.Offsets))
 		}
-		for i := 0; i < d-1; i++ {
-			c.PerInterrupt() // nested in the previous tick: busy is still set
+		// Run the previous tick with its nested interrupts where the
+		// original took them; the last interrupt starts this tick.
+		if n > 0 {
+			if err := tickNested(c, rec.Offsets[:d-1]); err != nil {
+				fail(n-1, c, "%v", err)
+			}
+		} else {
+			for i := 0; i < d-1; i++ {
+				c.PerInterrupt()
+			}
 		}
 		c.EndTick()
 		if !c.PerInterrupt() {
@@ -76,13 +85,23 @@ func main() {
 			report(n, &rec, c, diffs, *maxDiffs, *outDir)
 			os.Exit(1)
 		}
-		c.Tick()
 	}
 	fmt.Printf("refcompare: all %d ticks match", n)
 	if c.Unported != "" {
 		fmt.Printf(" (the port reached unported %s)", c.Unported)
 	}
 	fmt.Println()
+}
+
+// tickNested runs the tick, turning an engine panic (such as a ROM read
+// outside the manifest) into an error for the report.
+func tickNested(c *game.Console, sched []int) (err error) {
+	defer func() {
+		if r := recover(); r != nil {
+			err = fmt.Errorf("panic: %v", r)
+		}
+	}()
+	return c.TickNested(sched)
 }
 
 type diff struct {
