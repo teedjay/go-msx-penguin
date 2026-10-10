@@ -27,10 +27,10 @@ type Record struct {
 	// (the last starts this tick): the VRAM writes the previous tick had
 	// made when it arrived.
 	Offsets []int
-	Regs [8]byte
-	PSG  [16]byte
-	RAM  [RAMSize]byte // $E000-$E7FF
-	VRAM [VRAMSize]byte
+	Regs    [8]byte
+	PSG     [16]byte
+	RAM     [RAMSize]byte // $E000-$E7FF
+	VRAM    [VRAMSize]byte
 }
 
 // Reader streams records from a trace file.
