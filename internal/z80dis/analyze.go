@@ -344,3 +344,67 @@ func (a *Analysis) Stats() (code, data, unclaimed int) {
 	}
 	return
 }
+
+// Reach follows control flow from roots through analysed code (calls,
+// jumps, fall-through and inline-table entries) and returns the call
+// targets reached and the number of instructions reached.
+func (a *Analysis) Reach(roots []uint16) (calls []uint16, insts int) {
+	seen := map[uint16]bool{}
+	callSet := map[uint16]bool{}
+	tableAt := map[uint16]Table{}
+	for _, t := range a.Tables {
+		if t.Caller != 0 {
+			tableAt[t.Caller] = t
+		}
+	}
+	work := append([]uint16(nil), roots...)
+	for _, r := range roots {
+		callSet[r] = true
+	}
+	for len(work) > 0 {
+		pc := work[len(work)-1]
+		work = work[:len(work)-1]
+		for {
+			in, ok := a.Insts[pc]
+			if !ok || seen[pc] {
+				break
+			}
+			seen[pc] = true
+			insts++
+			if in.Flow == FlowCall || in.Flow == FlowCondCall {
+				if a.inROM(in.Val) {
+					callSet[in.Val] = true
+					work = append(work, in.Val)
+				}
+				if t, ok := tableAt[pc]; ok {
+					for i := 0; i < t.Count; i++ {
+						e := a.word(t.Addr + uint16(2*i))
+						callSet[e] = true
+						work = append(work, e)
+					}
+					break
+				}
+				if in.Flow == FlowCall && a.Cfg.NoReturn[in.Val] {
+					break
+				}
+			}
+			if in.Flow == FlowJump || in.Flow == FlowCondJump {
+				if a.inROM(in.Val) {
+					work = append(work, in.Val)
+				}
+				if in.Flow == FlowJump {
+					break
+				}
+			}
+			if in.Flow == FlowRet || in.Flow == FlowIndirect {
+				break
+			}
+			pc += uint16(in.Len)
+		}
+	}
+	for c := range callSet {
+		calls = append(calls, c)
+	}
+	sort.Slice(calls, func(i, j int) bool { return calls[i] < calls[j] })
+	return calls, insts
+}

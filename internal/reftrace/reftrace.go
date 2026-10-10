@@ -32,14 +32,26 @@ type Record struct {
 type Reader struct {
 	f  *os.File
 	br *bufio.Reader
+	// InitIRQs is the number of interrupts taken during INIT, before its
+	// final EI at $4042.
+	InitIRQs uint32
 }
+
+const headerSize = 8
 
 func Open(path string) (*Reader, error) {
 	f, err := os.Open(path)
 	if err != nil {
 		return nil, err
 	}
-	return &Reader{f: f, br: bufio.NewReaderSize(f, recSize*4)}, nil
+	r := &Reader{f: f, br: bufio.NewReaderSize(f, recSize*4)}
+	var h [headerSize]byte
+	if _, err := io.ReadFull(r.br, h[:]); err != nil || string(h[:4]) != "INIT" {
+		f.Close()
+		return nil, fmt.Errorf("reftrace: %s: missing INIT header", path)
+	}
+	r.InitIRQs = binary.LittleEndian.Uint32(h[4:])
+	return r, nil
 }
 
 func (r *Reader) Close() error { return r.f.Close() }
@@ -68,7 +80,7 @@ func (r *Reader) Next(rec *Record) error {
 
 // ReadAt seeks to record n and reads it.
 func (r *Reader) ReadAt(n int, rec *Record) error {
-	if _, err := r.f.Seek(int64(n)*recSize, io.SeekStart); err != nil {
+	if _, err := r.f.Seek(headerSize+int64(n)*recSize, io.SeekStart); err != nil {
 		return err
 	}
 	r.br.Reset(r.f)

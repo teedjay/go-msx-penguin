@@ -4,6 +4,7 @@
 //	go run ./cmd/disasm                 # write the listing, print stats
 //	go run ./cmd/disasm -gaps           # unclaimed ranges and who references them
 //	go run ./cmd/disasm -peek 4045-40A3 # linear decode, claims nothing
+//	go run ./cmd/disasm -reach 4010,4045 # routines reachable from roots
 package main
 
 import (
@@ -23,6 +24,7 @@ func main() {
 	out := flag.String("o", "docs/listing.asm", "listing output")
 	gaps := flag.Bool("gaps", false, "report unclaimed ranges with the instructions that reference into each")
 	peek := flag.String("peek", "", "linear decode of range A-B (hex), without claiming")
+	reach := flag.String("reach", "", "comma-separated roots (hex): list the routines reachable from them")
 	flag.Parse()
 
 	data, err := rom.Load(*romPath)
@@ -46,6 +48,21 @@ func main() {
 			check(fmt.Errorf("bad -peek range %q", *peek))
 		}
 		z80dis.Peek(os.Stdout, data, rom.Base, uint16(l), uint16(h), a.Name)
+		return
+	}
+
+	if *reach != "" {
+		var roots []uint16
+		for _, f := range strings.Split(*reach, ",") {
+			v, err := strconv.ParseUint(strings.TrimPrefix(strings.TrimSpace(f), "$"), 16, 16)
+			check(err)
+			roots = append(roots, uint16(v))
+		}
+		calls, n := a.Reach(roots)
+		for _, c := range calls {
+			fmt.Printf("$%04X %s\n", c, a.Label(c))
+		}
+		fmt.Printf("%d routines, %d instructions\n", len(calls), n)
 		return
 	}
 

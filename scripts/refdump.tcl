@@ -10,7 +10,9 @@
 # applied here are seen by this tick. Interrupts are counted at the
 # H.KEYI handler entry $4045.
 #
-# Record (little endian): "TICK", u32 tick, u32 irqs so far,
+# File starts with a header written at INIT's final EI ($4042): "INIT",
+# u32 interrupts taken during INIT (C-BIOS routines re-enable them).
+# Then one record per tick (little endian): "TICK", u32 tick, u32 irqs so far,
 #   8 VDP regs, 16 PSG regs, RAM $E000-$E7FF, VRAM $0000-$3FFF.
 # Keys file: one "tick:row:mask:down|up" per line, '#' comments.
 
@@ -57,5 +59,10 @@ proc rd_tick {} {
     }
 }
 
+proc rd_init {} {
+    puts -nonewline $::rd_out [binary format a4i INIT $::rd_irqs]
+}
+
+debug set_bp 0x4042 {} rd_init
 debug set_bp 0x4045 {} rd_irq
 debug set_bp 0x4083 {} rd_tick

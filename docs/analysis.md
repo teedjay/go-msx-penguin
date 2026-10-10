@@ -17,8 +17,12 @@ clear, meaning inferred), **Low** (plausible guess).
   arrive during a long tick run this work mid-tick in the original; the
   lockstep comparator can only run it between ticks. Expect possible
   differences on multi-frame ticks. (Medium)
-- Roles of `$4413` (called every tick before dispatch) and of most states
-  are not yet traced.
+- **Ported so far:** boot, the interrupt handler, input, the tick
+  dispatcher, `$4413`, states 1-6, the sound driver, `$4C98`, `$464C`.
+  Not yet ported: states 0 and 7-15 and everything they call (state 7 at
+  `$4180` is the first the attract trace reaches, at tick 458).
+- INIT takes 2 interrupts under C-BIOS. Real MSX BIOS routines may give a
+  different count; the frontend assumes 2. (Low)
 - `$79EA` is presumed to be the sound driver (per interrupt, when state ≠
   0). Unconfirmed. Find out whether game logic reads its RAM.
 - No `LD A,R` in the ROM (byte scan and listing). Find what the game uses
@@ -160,6 +164,13 @@ text via `$4583` from `$57DE`, `$5793`, `$57D3`, `$5756`, `$5785`.
   (trace record 1) in all three thirds: colour `$2F0-$6FF` (1040 bytes)
   and patterns `$2000-$26FF` (1792 bytes). `extract -check` shown to fail
   on a one-byte change.
+
+- 2026-10-10: `cmd/refcompare` on the 4000-tick attract trace: **ticks
+  0-457 match** in RAM (bar the stack, `$E380-$E3FF`), all VRAM, VDP
+  R0-R7 and PSG R0-R13/R15. Tick 458 is the first in state 7 (unported).
+  The comparator was shown to fail: one flipped RAM byte at tick 200 and
+  one flipped VRAM byte at tick 300 were each reported at that tick and
+  address.
 
 ## Dead code
 
