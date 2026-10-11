@@ -205,6 +205,18 @@ text via `$4583` from `$57DE`, `$5793`, `$57D3`, `$5756`, `$5785`.
   windows, and each side's strongest frequency is present in the other's
   spectrum in 2612 of 2652 (`cmd/audiocmp`).
 
+- 2026-10-11: audio latency (user: pickup sounds late). The game logic
+  starts sounds on the same tick as the original (PSG registers match);
+  the delay was the frontend's buffering: Ebitengine's audio package
+  keeps about 100 ms in the device (oto's four 12288-byte AudioQueue
+  buffers, not configurable through Ebitengine), plus a 50 ms player
+  buffer, plus a queue that could hold 100 ms. `cmd/play` now drives oto
+  directly: 40 ms device, 20 ms player, queue at most 2 frames, about
+  60 ms in all. Measured: real-time consumption (29.96 s in 30.2 s) and no
+  underruns after start-up; 20 ms/10 ms also ran clean here but oto notes
+  some Macs need more. (Ebitengine's player with a buffer under 40 ms
+  consumed at 0.57x real time here: don't go below that through it.)
+
 ## Resolved questions (2026-10-11)
 
 - `$79EA` is the sound driver (ported, matched in every trace). Game

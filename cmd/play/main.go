@@ -35,8 +35,8 @@ import (
 	"sync"
 	"time"
 
+	"github.com/ebitengine/oto/v3"
 	"github.com/hajimehoshi/ebiten/v2"
-	"github.com/hajimehoshi/ebiten/v2/audio"
 	"github.com/hajimehoshi/ebiten/v2/inpututil"
 
 	"go-msx-penguin/internal/game"
@@ -297,24 +297,50 @@ type sound struct {
 	chip  *psg.Chip
 	queue []byte // 16-bit little-endian stereo
 	pcm   []int16
+
+	player *oto.Player
 }
 
 const (
 	frameSamples = sampleRate / 60
 	frameBytes   = frameSamples * 4
-	maxQueued    = 6 * frameBytes // drop the oldest beyond this (latency cap)
+	maxQueued    = 2 * frameBytes // at most this queued (latency): drop the oldest beyond it
+)
+
+// Audio latency: the device keeps devBuffer of audio (split into four
+// buffers by oto), the player playerBuffer, and the queue below at most
+// maxQueued. Ebitengine's audio package fixes the device part at about
+// 100 ms, which made sound effects audibly late, so this drives oto (the
+// library under it) directly. AUDIO_DEV / AUDIO_PLAYER override the two
+// buffer sizes (Go durations) for machines that crackle.
+var (
+	devBuffer    = 40 * time.Millisecond
+	playerBuffer = 20 * time.Millisecond
 )
 
 func newSound() *sound {
 	s := &sound{chip: psg.New(sampleRate)}
 	s.cond = sync.NewCond(&s.mu)
-	ctx := audio.NewContext(sampleRate)
-	p, err := ctx.NewPlayer(s)
+	if d, err := time.ParseDuration(os.Getenv("AUDIO_DEV")); err == nil {
+		devBuffer = d
+	}
+	if d, err := time.ParseDuration(os.Getenv("AUDIO_PLAYER")); err == nil {
+		playerBuffer = d
+	}
+	ctx, ready, err := oto.NewContext(&oto.NewContextOptions{
+		SampleRate:   sampleRate,
+		ChannelCount: 2,
+		Format:       oto.FormatSignedInt16LE,
+		BufferSize:   devBuffer,
+	})
 	if err != nil {
 		log.Fatal(err)
 	}
-	p.SetBufferSize(50 * time.Millisecond)
+	<-ready
+	p := ctx.NewPlayer(s)
+	p.SetBufferSize(int(playerBuffer * sampleRate * 4 / time.Second))
 	p.Play()
+	s.player = p
 	return s
 }
 

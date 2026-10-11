@@ -50,6 +50,10 @@ repeat from level 11). The choice shows in the top right corner.
 
 **Extra time:** press **T** during a game to add 100 to the time.
 
+**Sound latency:** the audio is buffered for about 60 ms. If you hear
+crackling, raise it, e.g. `AUDIO_DEV=80ms AUDIO_PLAYER=40ms go run
+./cmd/play`; on a fast machine you can try lower values.
+
 `-record file.keys` saves your
 key presses in a form that can be replayed into the original (see
 `CLAUDE.md`) to check the port against it; a game started with the

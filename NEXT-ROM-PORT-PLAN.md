@@ -537,6 +537,17 @@ frequency present in the other's spectrum" agreed on 98.5% of windows.
 Compare presence, not the single peak: in a chord at equal volumes the
 loudest note depends on each output stage's filtering.
 
+**Audio latency is part of fidelity.** *(Third project)* The original
+plays a sound in the frame it starts; the user noticed pickup sounds lag.
+Ebitengine's audio package keeps about 100 ms in the device (oto's four
+AudioQueue buffers on macOS, not adjustable through it), on top of the
+player buffer and any queue of yours. Drive oto directly with a small
+device buffer (40 ms device + 20 ms player worked), give your queue a
+target depth rather than only a ceiling (with matched rates a queue that
+once fills stays full), and **measure** consumption against wall time:
+an Ebitengine player buffer under 40 ms silently consumed at 0.57x real
+time.
+
 **Make the frontend checkable headless too.** *(Third project)* Give the
 playable frontend `-press frame:KEY,...` (scripted keys) and `-shot
 file.png -shotframe N` (save the composited window and quit). Overlays and
