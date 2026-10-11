@@ -19,6 +19,7 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	"runtime/debug"
 	"strconv"
 	"strings"
 
@@ -98,10 +99,21 @@ func main() {
 func tickNested(c *game.Console, sched []int) (err error) {
 	defer func() {
 		if r := recover(); r != nil {
-			err = fmt.Errorf("panic: %v", r)
+			err = fmt.Errorf("panic: %v\n%s", r, engineFrames(debug.Stack()))
 		}
 	}()
 	return c.TickNested(sched)
+}
+
+// engineFrames keeps the game package's frames from a stack trace.
+func engineFrames(stack []byte) string {
+	var out []string
+	for _, l := range strings.Split(string(stack), "\n") {
+		if strings.Contains(l, "internal/game.") {
+			out = append(out, "    "+strings.TrimSpace(l))
+		}
+	}
+	return strings.Join(out, "\n")
 }
 
 type diff struct {

@@ -40,8 +40,12 @@ var Entries = []Entry{
 	{Name: "data_4B59", Kind: Raw, Addr: 0x4B59, Len: 40, Note: "referenced by $4BAB; untraced"},
 	{Name: "data_4C55", Kind: Raw, Addr: 0x4C55, Len: 12, Note: "referenced by $4C0E, $4EEA; untraced"},
 	{Name: "data_4CFF", Kind: Raw, Addr: 0x4CFF, Len: 31, Note: "referenced by $4CD3; untraced"},
-	{Name: "data_4D9D", Kind: Raw, Addr: 0x4D9D, Len: 10, Note: "referenced by $4D82; untraced"},
-	{Name: "data_4EC2", Kind: Raw, Addr: 0x4EC2, Len: 20, Note: "signed offsets; not yet traced"},
+	// $4D6B's range table at $4D9D is indexed by a RAM byte that its
+	// pointer quirk ($4D90) can pick from anywhere in RAM (confirmed in
+	// openMSX: tick 23676 of a searched schedule reads $4DAF via a fish
+	// counter at $E14A), so every byte up to $4D9D + 2*255 + 1 can be read.
+	// The entry also covers the knock offsets at $4EC2-$4ED5.
+	{Name: "scan_4D9D", Kind: Raw, Addr: 0x4D9D, Len: 0x4F9D - 0x4D9D, Note: "range table for $4D6B plus all code its quirky index can reach; includes the $4EC2 knock offsets (High)"},
 	{Name: "data_5119", Kind: Raw, Addr: 0x5119, Len: 54, Note: "referenced by $501C, $506E; untraced"},
 	{Name: "data_527B", Kind: Raw, Addr: 0x527B, Len: 42, Note: "referenced by $5264; untraced"},
 	{Name: "data_5391", Kind: Raw, Addr: 0x5391, Len: 224, Note: "referenced by $52B8, $52EF, $535D; untraced"},

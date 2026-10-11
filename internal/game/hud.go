@@ -170,8 +170,8 @@ func (c *Console) speedBar() {
 	c.vcopy(0xE171, 0x3839, 6)
 }
 
-// speedControl applies up/down to the speed $E100 and derives $E148 and
-// $E10E. Ported from $769A-$76E4 (High).
+// speedControl applies up/down to the speed period $E100 (lower is
+// faster) and derives $E148 and $E10E. Ported from $769A-$76E4 (High).
 func (c *Console) speedControl() {
 	c.speedInput()
 	c.RAM[0x148] = c.RAM[0x100] >> 1
@@ -196,8 +196,11 @@ func (c *Console) speedControl() {
 	c.RAM[0x10E] = cc
 }
 
-// speedInput: up (bit 0) slows down one step every 12 ticks, down
-// (bit 1) speeds up one step every 4 ticks. Ported from $76E5-$7723.
+// speedInput: $E100 is a period (the distance counts down every
+// ($E100>>1)-1 ticks), so lower is faster. Up (bit 0) speeds up one step
+// every 12 ticks, down to 9; down (bit 1) brakes one step every 4 ticks,
+// up to $13. Ported from $76E5-$7723 (High; the meaning was first noted
+// backwards, corrected 2026-10-11).
 func (c *Console) speedInput() {
 	switch c.RAM[0x009] & 0x03 {
 	case 1: // $76F5

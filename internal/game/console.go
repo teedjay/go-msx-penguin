@@ -68,6 +68,12 @@ func (c *Console) rd(a uint16) byte {
 	switch {
 	case a >= 0x4000 && a < 0x8000:
 		return assets.ROMByte(a)
+	case a < 2:
+		// After a game over the demo input reader runs with its pointer
+		// at $E0EC still 0 and reads the BIOS: every MSX BIOS (and
+		// C-BIOS) starts with DI ($F3), JP ($C3). Nothing further has
+		// been seen read; anything else in page 0 still panics.
+		return [2]byte{0xF3, 0xC3}[a]
 	case a >= ramBase && a < ramBase+ramSize:
 		return c.RAM[a-ramBase]
 	}

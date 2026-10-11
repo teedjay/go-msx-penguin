@@ -1,7 +1,7 @@
 // Command keygen writes a pseudo-random key schedule for scripted traces
 // (format tick:row:mask:down|up, as read by scripts/refdump.tcl and
 // cmd/refcompare). It presses 2 on the title (keyboard play), then mostly
-// accelerates while steering and jumping at random.
+// accelerates (holds up) while steering and jumping at random.
 //
 //	go run ./cmd/keygen -seed 1 -ticks 8000 > /tmp/play1.keys
 package main
@@ -26,6 +26,7 @@ func main() {
 	seed := flag.Int64("seed", 1, "random seed")
 	ticks := flag.Int("ticks", 8000, "schedule length")
 	start := flag.Int("start", 200, "tick to press 2 (keyboard play)")
+	rush := flag.Bool("rush", false, "always accelerate, jump often, steer rarely (to reach stage clears)")
 	flag.Parse()
 	r := rand.New(rand.NewSource(*seed))
 
@@ -44,8 +45,20 @@ func main() {
 		fmt.Printf("%d:%d:0x%02X:%s\n", t, row8, mask, dir)
 	}
 	for t := *start + 60; t < *ticks; t += 4 + r.Intn(20) {
-		set(t, down, r.Intn(10) < 7)
-		set(t, up, !held[down] && r.Intn(4) == 0)
+		if *rush {
+			set(t, up, true) // up accelerates: $E100 is a period
+			if r.Intn(3) == 0 {
+				set(t, space, true)
+				set(t+2, space, false)
+				held[space] = false
+			}
+			if r.Intn(4) != 0 {
+				continue
+			}
+		} else {
+			set(t, up, r.Intn(10) < 7)
+			set(t, down, !held[up] && r.Intn(4) == 0)
+		}
 		switch r.Intn(5) {
 		case 0:
 			set(t, left, true)

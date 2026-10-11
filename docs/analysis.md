@@ -7,14 +7,6 @@ clear, meaning inferred), **Low** (plausible guess).
 
 ## Open issues
 
-- **Next bug to chase (2026-10-10):** keyboard-play trace
-  (`go run ./cmd/keygen -seed 1 -ticks 8000`) matches for ticks 0-1163,
-  including the real-game start and ~960 ticks of live play. At tick 1164
-  the port's `collide4D6B` reads `$4DA7` (past the `$4D9D` table, in code)
-  and panics. A read watchpoint on `$4DA7-$4DAA` in openMSX logged no data
-  read there by the original, so this is probably a port bug in that tick
-  (suspect the `$4D90` pointer quirk or the object kind at +1). Unconfirmed:
-  first check that the watchpoint probe works at all.
 - **Tick pacing.** Load ticks take 14 frames in the original (8 such ticks
   in a 4000-tick attract trace, all other ticks 1 frame). Decide how the
   playable frontend models this; the comparator handles it already by
@@ -25,14 +17,12 @@ clear, meaning inferred), **Low** (plausible guess).
   arrive during a long tick run this work mid-tick in the original; the
   lockstep comparator can only run it between ticks. Expect possible
   differences on multi-frame ticks. (Medium)
-- **Everything reachable is ported** (3121 instructions). Verified by
-  the attract trace: boot, states 1-7, 9, 10, 11 (demo branch), 15, the
-  demo game, sound, per-interrupt work. **Translated but not yet verified
-  by any trace:** live play (state 11's play branch, joystick and keyboard
-  input), the real-game start (state 8), time out (12, 13), stage clear
-  (14), the fish sprites (`$775F`, live play only), and any path the demo
-  does not happen to reach (falls, knocks, wind, fish pickup, scoring).
-  Needs scripted-input traces (`-keys`) and a human playing.
+- **Everything reachable is ported and verified, except joystick
+  input.** Traces (see the verification log) cover the attract demo, the
+  real-game start, keyboard play, falls, knocks (including while
+  jumping), obstacles, fish, wind, time out, game over, stage clears with
+  the bonus scene after the 5th, and stages 1-7. Joystick input (`$40A4`
+  via PSG R14) is translated but no trace drives a joystick yet.
 - INIT takes 2 interrupts under C-BIOS. Real MSX BIOS routines may give a
   different count; the frontend assumes 2. (Low)
 - `$79EA` is presumed to be the sound driver (per interrupt, when state ≠
@@ -168,6 +158,12 @@ text via `$4583` from `$57DE`, `$5793`, `$57D3`, `$5756`, `$5785`.
 
 ## Verification log
 
+- openMSX probing note: in a `read_mem` watchpoint command,
+  `$::wp_last_value` does not exist and the command fails silently, and
+  instruction fetches also trigger it. Avoid Tcl globals named `::keys` or
+  `::t`, which also broke a probe silently. Log `[reg PC]` and registers
+  from breakpoints instead.
+
 - 2026-10-10: attract trace, 4000 ticks from power-on (C-BIOS_MSX1_JP).
   Rendering ticks 50, 200 and 1000 through `internal/msxrender` gave the
   logo, the title screen and demo gameplay with correct text and sprites.
@@ -192,7 +188,22 @@ text via `$4583` from `$57DE`, `$5793`, `$57D3`, `$5756`, `$5785`.
   table into the code bytes at `$5834-$5835` (the trace shows `$E0EC`
   reaching `$5836`). Comparator re-proven at tick 1500 (demo play).
 
+- 2026-10-11: keyboard play. Random schedules (`cmd/keygen`, seeds 1-4,
+  8000-10000 ticks each) all match. Two more manifest gaps first showed
+  as panics and were confirmed in openMSX as original behaviour: `$4D6B`
+  reads its range table at `$4D9D` with indices far past its 5 entries
+  (any RAM byte, via the `$4D90` quirk), and after a game over the demo
+  input reader reads BIOS bytes at `$0000`. Random play never clears a
+  stage, so `cmd/keysearch` searches inputs on the port; the schedules
+  were then recorded on the original: 23101 ticks (4 clears) and 41821
+  ticks (6 clears, bonus scene, stage 7) all match. `cmd/tracecov`
+  reports what a set of traces exercises.
+
 ## Corrections
+
+- 2026-10-11: `$E100` is a speed *period* (lower is faster): up
+  accelerates, down brakes. The comments had it backwards; the code was
+  right (the comparator matched either way).
 
 - 2026-10-10: `$49B6-$49C8` was listed as data. It is four 4-byte code
   stubs reached by `JP (HL)` at `$49B5` (cursor moves for the stage map
@@ -207,6 +218,11 @@ text via `$4583` from `$57DE`, `$5793`, `$57D3`, `$5756`, `$5785`.
 - `$4E50`: the knocked-aside offsets table is addressed from `$4EC1`, a
   code byte; the index starts at 1, so the code byte is never read.
 - Demo input reads two code bytes (`$5834-$5835`) at the end of the demo.
+- `$4D6B` indexes its 5-entry range table at `$4D9D` with object kinds up
+  to 6, and through the `$4D90` quirk with any RAM byte, reading code as
+  ranges anywhere up to `$4F9C`. Confirmed with the oracle (2026-10-11).
+- After a game over, the demo input reader runs with `$E0EC` = 0 and
+  reads the BIOS at `$0000` (`$F3`, `DI`). The port maps those two bytes.
 
 ## Dead code
 

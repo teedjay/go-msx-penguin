@@ -48,8 +48,23 @@ go run ./cmd/disasm                 # regenerate docs/listing.asm (git-ignored)
 go run ./cmd/disasm -gaps           # unclaimed ranges and their referrers
 go run ./cmd/disasm -peek 4045-40A3 # linear decode, claims nothing
 scripts/refdump.sh /tmp/attract.trace 4000          # record the original
+go run ./cmd/refcompare -trace /tmp/attract.trace   # lockstep check
+go run ./cmd/keygen -seed 1 -ticks 8000 > /tmp/play1.keys
+scripts/refdump.sh /tmp/play1.trace 8000 /tmp/play1.keys
+go run ./cmd/refcompare -trace /tmp/play1.trace -keys /tmp/play1.keys
+go run ./cmd/keysearch -seed 1 -stages 5 > /tmp/win1.keys   # reach stage clears
+go run ./cmd/tracecov /tmp/*.trace                  # what the traces exercise
 go run ./cmd/vramview -trace /tmp/attract.trace -tick 1000 -o /tmp/t.png
 ```
+
+Keys in keyboard mode: cursor keys on row 8 (`LEFT $10`, `UP $20`,
+`DOWN $40`, `RIGHT $80`), `SPACE` ($01) jumps; `2` (row 0, `$04`)
+starts a keyboard game. **`$E100` is a period: up accelerates.**
+
+openMSX probe pitfalls: `$::wp_last_value` is unset in `read_mem`
+watchpoint commands (the command fails silently), instruction fetches
+trigger `read_mem` watchpoints, and Tcl globals named `::keys` or `::t`
+break scripts silently. Prefix probe globals.
 
 `docs/disasm.cfg` records confirmed entries, labels, the `$409A`
 trampoline and declared data; re-run `cmd/disasm` after editing it.
