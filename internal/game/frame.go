@@ -45,10 +45,39 @@ func (c *Console) setVDPRegs() {
 }
 
 // Interrupt is one VBlank interrupt: the per-interrupt work and, unless a
-// tick is already running, one game tick. Ported from $4045-$4099.
+// tick is already running, one game tick. Every tick takes one interrupt,
+// which is what the headless tools want; a real-time frontend uses Frame.
+// Ported from $4045-$4099.
 func (c *Console) Interrupt() {
 	if c.PerInterrupt() {
 		c.Tick()
+		c.EndTick()
+	}
+}
+
+// Frame is one 60Hz frame for a real-time frontend. It paces ticks like
+// the original: a tick that would take longer than a frame keeps the
+// busy flag set for the frames it owes, which then run the per-interrupt
+// work only (sound keeps playing during loads). The cost model, 200
+// cycles per VRAM address set-up and 66 per VRAM write against 59659
+// cycles per frame, predicts the frame count of 76899 of 76918 ticks in
+// the reference traces; the misses are load ticks off by 1-2 frames.
+func (c *Console) Frame() {
+	if c.owed > 0 {
+		c.owed--
+		c.PerInterrupt() // busy: per-interrupt work only
+		if c.owed == 0 {
+			c.EndTick()
+		}
+		return
+	}
+	if !c.PerInterrupt() {
+		return
+	}
+	c.vwrites, c.vsets = 0, 0
+	c.Tick()
+	c.owed = (200*c.vsets + 66*c.vwrites) / 59659
+	if c.owed == 0 {
 		c.EndTick()
 	}
 }
@@ -84,6 +113,7 @@ func (c *Console) PerInterrupt() bool {
 // re-enables interrupts here, so interrupts during a long tick run
 // PerInterrupt only. Ported from $4082-$4086.
 func (c *Console) Tick() {
+	c.ticks++
 	c.readInput()
 	c.tick4107()
 }
@@ -99,7 +129,7 @@ func (c *Console) Tick() {
 // stream that runs with interrupts enabled. It returns an error when the
 // port's tick makes fewer writes than the schedule needs.
 func (c *Console) TickNested(sched []int) error {
-	c.vwrites = 0
+	c.vwrites, c.vsets = 0, 0
 	c.irqSched = sched
 	c.deliver()
 	c.Tick()
@@ -123,6 +153,16 @@ func (c *Console) deliver() {
 		c.inIRQ = false
 	}
 }
+
+// Ticks is the number of ticks started since power-on, which is also the
+// index (as scripts/refdump.tcl counts them) of the next tick to start.
+func (c *Console) Ticks() int { return c.ticks }
+
+// VWrites is the number of VRAM writes since the current tick started.
+func (c *Console) VWrites() int { return c.vwrites }
+
+// VSets is the number of VRAM address set-ups since the tick started.
+func (c *Console) VSets() int { return c.vsets }
 
 // EndTick clears the busy flag. Ported from $4089-$408E.
 func (c *Console) EndTick() { c.RAM[0x005] = 0 }

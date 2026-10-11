@@ -5,8 +5,11 @@ racing across the ice). Each routine of the original was read and
 rewritten as ordinary Go against a small hardware-abstraction layer. No
 Z80 code runs at runtime: this is a port, not an emulator.
 
-Status: early. See `docs/analysis.md` for what has been traced and
-verified, and `CLAUDE.md` for how the work is done.
+Status: complete and playable. Every routine is ported, and the port
+matches the original byte for byte (RAM, VRAM, video and sound chip
+registers, every tick) over the attract demo and recorded keyboard games
+through stage 7. See `docs/analysis.md` for what has been verified and
+`CLAUDE.md` for how the work is done.
 
 ## Requirements
 
@@ -25,6 +28,18 @@ go build ./... && go test ./...
 
 The `assets` package embeds the extracted files, so run `cmd/extract`
 before building anything else.
+
+## Playing
+
+```bash
+go run ./cmd/play
+```
+
+On the title, press **1** for joystick (a gamepad) or **2** for
+keyboard. Keyboard: **up** accelerates, **down** brakes, **left/right**
+steer, **space** jumps. **Esc** quits. `-record file.keys` saves your
+key presses in a form that can be replayed into the original (see
+`CLAUDE.md`) to check the port against it.
 
 ## Legal
 

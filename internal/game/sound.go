@@ -16,6 +16,17 @@ package game
 
 const sndChan0 = 0xE010
 
+// StartSound requests sound id a, for tools that preview sounds.
+func (c *Console) StartSound(a byte) { c.startSound(a) }
+
+// SoundDriver runs one interrupt's worth of the sound driver, for tools.
+func (c *Console) SoundDriver() { c.soundDriver() }
+
+// SoundActive reports whether any channel is still playing.
+func (c *Console) SoundActive() bool {
+	return c.RAM[0x012]|c.RAM[0x01C]|c.RAM[0x026] != 0
+}
+
 // startSound requests sound id a. Ported from $7983-$7990 (which only
 // wraps $7991 in DI/EI and register saves).
 func (c *Console) startSound(a byte) { c.sound7991(a) }

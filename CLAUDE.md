@@ -54,6 +54,8 @@ scripts/refdump.sh /tmp/play1.trace 8000 /tmp/play1.keys
 go run ./cmd/refcompare -trace /tmp/play1.trace -keys /tmp/play1.keys
 go run ./cmd/keysearch -seed 1 -stages 5 > /tmp/win1.keys   # reach stage clears
 go run ./cmd/tracecov /tmp/*.trace                  # what the traces exercise
+go run ./cmd/sndpreview -id 0x92 -o /tmp/snd92.wav  # hear a sound headless
+go run ./cmd/play [-record /tmp/me.keys]            # the playable frontend
 go run ./cmd/vramview -trace /tmp/attract.trace -tick 1000 -o /tmp/t.png
 ```
 

@@ -7,10 +7,13 @@ clear, meaning inferred), **Low** (plausible guess).
 
 ## Open issues
 
-- **Tick pacing.** Load ticks take 14 frames in the original (8 such ticks
-  in a 4000-tick attract trace, all other ticks 1 frame). Decide how the
-  playable frontend models this; the comparator handles it already by
-  replaying the interrupt counts.
+- Joystick input is translated but not verified by a trace (openMSX's
+  key joystick follows host key events, which a script cannot send).
+- The frontend's tick pacing (`game.Frame`) estimates a tick's length
+  from its VRAM traffic; load ticks can be 1-2 frames off. Real MSX BIOS
+  routines may also take different times from C-BIOS.
+- PSG model: the envelope generator is implemented but unverified (the
+  game never writes R11-R13).
 - **Per-interrupt work is more than sound.** For state < `$0C` the IRQ
   handler runs `$4C98` (when `$E140`+`$E142` = 0), `$464C`, and updates
   `$E0FC` from bit 7 of `$E081`, *before* the busy check. Interrupts that

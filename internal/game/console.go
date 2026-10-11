@@ -40,8 +40,12 @@ type Console struct {
 
 	// Nested interrupt delivery for lockstep runs (see TickNested).
 	vwrites  int   // VRAM data writes since the tick started
+	vsets    int   // VRAM address set-ups since the tick started
 	irqSched []int // vwrites values at which nested interrupts arrive
 	inIRQ    bool
+
+	owed  int // frames the running tick still takes (Frame pacing)
+	ticks int // ticks started since power-on
 }
 
 // New returns a powered-on console with no keys pressed.
@@ -139,7 +143,10 @@ func (c *Console) snsmat(row byte) byte {
 // set ($6000 for $2000); the VDP only sees 14 bits.
 
 // vsetwr sets the VRAM write address. Ported from $48B7-$48C5.
-func (c *Console) vsetwr(de uint16) { c.vaddr = de & 0x3FFF }
+func (c *Console) vsetwr(de uint16) {
+	c.vaddr = de & 0x3FFF
+	c.vsets++
+}
 
 // vout writes one byte at the VRAM address and advances it, like
 // OUT (C),A with C holding the VDP data port.
