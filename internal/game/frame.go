@@ -102,6 +102,9 @@ func (c *Console) PerInterrupt() bool {
 		}
 		c.RAM[0x0FC] = a
 	}
+	if c.OnInterrupt != nil {
+		c.OnInterrupt()
+	}
 	if c.RAM[0x005]&1 != 0 {
 		return false
 	}

@@ -55,6 +55,19 @@ func (p *Chip) SetRegs(regs [16]byte) {
 	}
 }
 
+// Frame applies one frame's registers, as the game left them after an
+// interrupt, and appends n samples (16-bit, scaled by gain) to out. Both
+// the window (cmd/play) and the headless audio check (cmd/sndpreview
+// -trace) render through this, so what was compared with the original is
+// what is heard.
+func (p *Chip) Frame(regs [16]byte, n int, gain float64, out []int16) []int16 {
+	p.SetRegs(regs)
+	for i := 0; i < n; i++ {
+		out = append(out, int16(p.Sample()*gain))
+	}
+	return out
+}
+
 // Sample returns the next mono sample in [0, 1].
 func (p *Chip) Sample() float64 {
 	// Each generator steps at Clock/16 per period unit.

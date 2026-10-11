@@ -56,6 +56,9 @@ go run ./cmd/keysearch -seed 1 -stages 5 > /tmp/win1.keys   # reach stage clears
 go run ./cmd/tracecov /tmp/*.trace                  # what the traces exercise
 go run ./cmd/sndpreview -id 0x92 -o /tmp/snd92.wav  # hear a sound headless
 go run ./cmd/play [-record /tmp/me.keys]            # the playable frontend
+scripts/refaudio.sh /tmp/ref.wav 3000 /tmp/win1.keys  # original's audio
+go run ./cmd/sndpreview -trace /tmp/win1.trace -keys /tmp/win1.keys -irqs 3000 -o /tmp/port.wav
+go run ./cmd/audiocmp /tmp/ref.wav /tmp/port.wav    # compare the two
 go run ./cmd/vramview -trace /tmp/attract.trace -tick 1000 -o /tmp/t.png
 ```
 

@@ -44,6 +44,10 @@ type Console struct {
 	irqSched []int // vwrites values at which nested interrupts arrive
 	inIRQ    bool
 
+	// OnInterrupt, if set, runs at the end of every interrupt's
+	// per-interrupt work (tools that render audio per interrupt).
+	OnInterrupt func()
+
 	owed  int // frames the running tick still takes (Frame pacing)
 	ticks int // ticks started since power-on
 }

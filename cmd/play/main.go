@@ -21,6 +21,7 @@ import (
 	"log"
 	"os"
 	"sync"
+	"time"
 
 	"github.com/hajimehoshi/ebiten/v2"
 	"github.com/hajimehoshi/ebiten/v2/audio"
@@ -92,7 +93,7 @@ func (a *app) Update() error {
 	}
 	a.input()
 	a.c.Frame()
-	a.snd.set(a.c.PSG)
+	a.snd.frame(a.c.PSG)
 	return nil
 }
 
@@ -164,41 +165,82 @@ func (a *app) Draw(screen *ebiten.Image) {
 
 func (a *app) Layout(int, int) (int, int) { return msxrender.Width, msxrender.Height }
 
-// sound streams the PSG model to the audio device. The game thread sets
-// the registers once per frame; the audio thread pulls samples.
+// sound turns the game's PSG registers into audio in step with game
+// frames. Each frame the game thread applies that frame's registers and
+// generates exactly one frame of samples (44100/60 = 735) into a queue
+// the audio thread drains. (Applying registers from the audio thread
+// instead, once per Read, sampled them only a few times a second, which
+// garbled the music and lost short sound effects.)
 type sound struct {
-	mu   sync.Mutex
-	chip *psg.Chip
-	regs [16]byte
+	mu    sync.Mutex
+	cond  *sync.Cond
+	chip  *psg.Chip
+	queue []byte // 16-bit little-endian stereo
+	pcm   []int16
 }
+
+const (
+	frameSamples = sampleRate / 60
+	frameBytes   = frameSamples * 4
+	maxQueued    = 6 * frameBytes // drop the oldest beyond this (latency cap)
+)
 
 func newSound() *sound {
 	s := &sound{chip: psg.New(sampleRate)}
+	s.cond = sync.NewCond(&s.mu)
 	ctx := audio.NewContext(sampleRate)
 	p, err := ctx.NewPlayer(s)
 	if err != nil {
 		log.Fatal(err)
 	}
-	p.SetBufferSize(sampleRate / 30 * 4) // about two frames of latency
+	p.SetBufferSize(50 * time.Millisecond)
 	p.Play()
 	return s
 }
 
-func (s *sound) set(regs [16]byte) {
+// frame generates one frame of audio from the registers the game left.
+func (s *sound) frame(regs [16]byte) {
+	s.pcm = s.chip.Frame(regs, frameSamples, 12000, s.pcm[:0])
+	buf := make([]byte, 0, frameBytes)
+	for _, v := range s.pcm {
+		buf = append(buf, byte(v), byte(v>>8), byte(v), byte(v>>8)) // stereo
+	}
 	s.mu.Lock()
-	s.regs = regs
+	s.queue = append(s.queue, buf...)
+	if over := len(s.queue) - maxQueued; over > 0 {
+		s.queue = s.queue[over/4*4:]
+	}
 	s.mu.Unlock()
+	s.cond.Signal()
 }
 
-// Read fills 16-bit little-endian stereo samples.
+// Read hands queued samples to the audio device, waiting briefly for the
+// game when the queue is empty and playing silence if it stalls (a paused
+// or minimised window).
 func (s *sound) Read(p []byte) (int, error) {
-	s.mu.Lock()
-	s.chip.SetRegs(s.regs)
-	s.mu.Unlock()
 	n := len(p) / 4 * 4
-	for i := 0; i < n; i += 4 {
-		v := int16(s.chip.Sample() * 12000)
-		p[i], p[i+1], p[i+2], p[i+3] = byte(v), byte(v>>8), byte(v), byte(v>>8)
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if len(s.queue) == 0 {
+		deadline := time.Now().Add(30 * time.Millisecond)
+		go func() {
+			time.Sleep(30 * time.Millisecond)
+			s.cond.Broadcast()
+		}()
+		for len(s.queue) == 0 && time.Now().Before(deadline) {
+			s.cond.Wait()
+		}
 	}
+	if len(s.queue) == 0 {
+		for i := 0; i < n; i++ {
+			p[i] = 0
+		}
+		return n, nil
+	}
+	if n > len(s.queue) {
+		n = len(s.queue)
+	}
+	copy(p, s.queue[:n])
+	s.queue = s.queue[n:]
 	return n, nil
 }

@@ -13,7 +13,9 @@ clear, meaning inferred), **Low** (plausible guess).
   from its VRAM traffic; load ticks can be 1-2 frames off. Real MSX BIOS
   routines may also take different times from C-BIOS.
 - PSG model: the envelope generator is implemented but unverified (the
-  game never writes R11-R13).
+  game never writes R11-R13). Audio around the start of the game tune
+  (after the 14-frame load in state 8) comes out about 6 frames later
+  than the original's in the headless check; elsewhere it agrees.
 - **Per-interrupt work is more than sound.** For state < `$0C` the IRQ
   handler runs `$4C98` (when `$E140`+`$E142` = 0), `$464C`, and updates
   `$E0FC` from bit 7 of `$E081`, *before* the busy check. Interrupts that
@@ -193,6 +195,15 @@ text via `$4583` from `$57DE`, `$5793`, `$57D3`, `$5756`, `$5785`.
   were then recorded on the original: 23101 ticks (4 clears) and 41821
   ticks (6 clears, bonus scene, stage 7) all match. `cmd/tracecov`
   reports what a set of traces exercises.
+
+- 2026-10-11: audio. `cmd/play` applied the PSG registers from the audio
+  thread once per Read, i.e. a few times a second: music garbled, short
+  effects lost (reported by the user). Now each game frame renders its
+  own 735 samples through `psg.Chip.Frame`. Checked against the
+  original's audio recorded by openMSX (`scripts/refaudio.sh`) over 3000
+  interrupts of keyboard play: on/off agrees in 2652 of 2663 sounding
+  windows, and each side's strongest frequency is present in the other's
+  spectrum in 2612 of 2652 (`cmd/audiocmp`).
 
 ## Resolved questions (2026-10-11)
 
