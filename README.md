@@ -42,6 +42,8 @@ steer, **space** jumps. **Esc** quits. **Level select:** on the title screen pre
 repeat from level 11). The choice shows in the top right corner.
 `-level N` preselects it from the command line.
 
+**Extra time:** press **T** during a game to add 100 to the time.
+
 `-record file.keys` saves your
 key presses in a form that can be replayed into the original (see
 `CLAUDE.md`) to check the port against it; a game started with the

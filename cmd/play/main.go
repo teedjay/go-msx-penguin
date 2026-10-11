@@ -13,6 +13,8 @@
 // through the MSX video chip). A cheated game cannot be replayed into the
 // original from a -record file.
 //
+// Extra-time cheat: press T during a game to add 100 to the time.
+//
 // A recorded schedule replays into the original and the port:
 //
 //	scripts/refdump.sh /tmp/me.trace N /tmp/me.keys
@@ -28,11 +30,14 @@ import (
 	"log"
 	"math"
 	"os"
+	"strconv"
+	"strings"
 	"sync"
 	"time"
 
 	"github.com/hajimehoshi/ebiten/v2"
 	"github.com/hajimehoshi/ebiten/v2/audio"
+	"github.com/hajimehoshi/ebiten/v2/inpututil"
 
 	"go-msx-penguin/internal/game"
 	"go-msx-penguin/internal/msxrender"
@@ -66,6 +71,7 @@ type app struct {
 	shot      string
 	shotFrame int
 	shotDone  bool
+	script    map[ebiten.Key][]int // scripted press start frames
 	snd       *sound
 	rec       *bufio.Writer
 	recF      *os.File
@@ -77,6 +83,7 @@ func main() {
 	level := flag.Int("level", 0, "preselect the level-select cheat (1-26), as if its letter were pressed on the title")
 	shot := flag.String("shot", "", "save the window image (overlay included) to this PNG at -shotframe and quit")
 	shotFrame := flag.Int("shotframe", 300, "frame for -shot")
+	press := flag.String("press", "", "scripted key presses for checks, frame:KEY,... (each held 3 frames), e.g. 260:2,1200:T")
 	flag.Parse()
 
 	a := &app{
@@ -90,6 +97,7 @@ func main() {
 		a.c.StartStage = *level
 	}
 	a.shot, a.shotFrame = *shot, *shotFrame
+	a.script = parsePress(*press)
 	if *record != "" {
 		f, err := os.Create(*record)
 		if err != nil {
@@ -133,7 +141,7 @@ func (a *app) Update() error {
 // against the index of the next tick to start (as refdump counts ticks).
 func (a *app) input() {
 	for _, k := range keyMap {
-		down := ebiten.IsKeyPressed(k.key)
+		down := a.pressed(k.key)
 		was := a.c.Keys[k.row]&k.mask == 0
 		if down == was {
 			continue
@@ -153,6 +161,57 @@ func (a *app) input() {
 		}
 	}
 	a.c.JoyA = joystick()
+}
+
+// pressed reports whether a key is held, really or by -press.
+func (a *app) pressed(k ebiten.Key) bool {
+	if ebiten.IsKeyPressed(k) {
+		return true
+	}
+	for _, f := range a.script[k] {
+		if a.frames >= f && a.frames < f+3 {
+			return true
+		}
+	}
+	return false
+}
+
+// justPressed reports whether a key went down this frame.
+func (a *app) justPressed(k ebiten.Key) bool {
+	if inpututil.IsKeyJustPressed(k) {
+		return true
+	}
+	for _, f := range a.script[k] {
+		if a.frames == f {
+			return true
+		}
+	}
+	return false
+}
+
+// parsePress reads -press: frame:KEY pairs, KEY a letter, digit or a
+// name ebiten knows (Space, ArrowUp, ...).
+func parsePress(s string) map[ebiten.Key][]int {
+	m := map[ebiten.Key][]int{}
+	for _, item := range strings.Split(s, ",") {
+		fs, ks, ok := strings.Cut(strings.TrimSpace(item), ":")
+		if !ok {
+			continue
+		}
+		f, err := strconv.Atoi(fs)
+		if err != nil {
+			log.Fatalf("-press: bad frame in %q", item)
+		}
+		var k ebiten.Key
+		if len(ks) == 1 && ks[0] >= '0' && ks[0] <= '9' {
+			ks = "Digit" + ks
+		}
+		if err := k.UnmarshalText([]byte(ks)); err != nil {
+			log.Fatalf("-press: bad key in %q", item)
+		}
+		m[k] = append(m[k], f)
+	}
+	return m
 }
 
 // joystick reads the first gamepad as an MSX joystick (clear = pressed):

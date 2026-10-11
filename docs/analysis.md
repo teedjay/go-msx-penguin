@@ -259,6 +259,15 @@ text via `$4583` from `$57DE`, `$5793`, `$57D3`, `$5756`, `$5785`.
   letters A-Z on the title and draws the choice as an overlay, outside
   the MSX picture.
 
+- **Extra-time cheat** (2026-10-11): `Console.AddTime` (T in
+  `cmd/play`) adds 100 to the BCD timer `$E0E3-$E0E4`, capped at 9999,
+  and redraws it with `printTime`. Only in live play with the timer
+  running and before a time-out is decided. Called between frames, not a
+  hook in the engine flow.
+- Not added: a "flashing flag" speed and invincibility bonus. The MSX
+  game has no such thing (its only flag, object kinds 5/6, gives 500
+  points via `$4FF1`); the user chose the extra-time cheat instead.
+
 ## Dead code
 
 `$4401`, `$4442`, `$48AE`: no CALL/JP and no 16-bit word in the ROM points

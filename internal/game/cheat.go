@@ -56,3 +56,22 @@ func (c *Console) skipStage() {
 		c.RAM[0x0E8] = 0
 	}
 }
+
+// AddTime is the extra-time cheat: it adds 100 to the BCD timer at
+// $E0E3-$E0E4 (capped at 9999) and redraws it at once with the game's own
+// digit routine (the original redraws it only every 64 frames). It only
+// acts in live play while the timer runs: state 11, $E002 bit 6, $E133
+// set, and not once time has run out ($E00C, the time-out is then already
+// decided). It returns whether it acted. Call it between frames.
+func (c *Console) AddTime() bool {
+	if c.RAM[0x000] != 11 || c.RAM[0x002]&0x40 == 0 || c.RAM[0x133] == 0 || c.RAM[0x00C] != 0 {
+		return false
+	}
+	hi, carry := adcDAA(c.RAM[0x0E4], 1, false)
+	if carry {
+		c.RAM[0x0E3], hi = 0x99, 0x99
+	}
+	c.RAM[0x0E4] = hi
+	c.printTime()
+	return true
+}

@@ -70,3 +70,51 @@ func TestCheatStartsAtStage(t *testing.T) {
 		}
 	}
 }
+
+func TestAddTime(t *testing.T) {
+	c := New()
+	c.Boot(2)
+	for i := 0; i < 250; i++ {
+		c.Interrupt()
+	}
+	if c.AddTime() {
+		t.Fatal("AddTime acted on the title screen")
+	}
+	c.Keys[0] &^= 0x04 // 2: keyboard play
+	for i := 0; i < 3; i++ {
+		c.Interrupt()
+	}
+	c.Keys[0] |= 0x04
+	for i := 0; c.RAM[0x000] != 11 && i < 3000; i++ {
+		c.Interrupt()
+	}
+	for i := 0; i < 100; i++ {
+		c.Interrupt()
+	}
+	lo, hi := c.RAM[0x0E3], c.RAM[0x0E4]
+	if !c.AddTime() {
+		t.Fatal("AddTime did not act in play")
+	}
+	if wantHi, _ := adcDAA(hi, 1, false); c.RAM[0x0E3] != lo || c.RAM[0x0E4] != wantHi {
+		t.Errorf("time %02X%02X -> %02X%02X, want +100", hi, lo, c.RAM[0x0E4], c.RAM[0x0E3])
+	}
+	// The display at $3827: four digit tiles $10-$19, high byte first.
+	want := []byte{c.RAM[0x0E4]>>4 | 0x10, c.RAM[0x0E4]&0x0F | 0x10, lo>>4 | 0x10, lo&0x0F | 0x10}
+	for i, w := range want {
+		if c.VRAM[0x3827+i] != w {
+			t.Errorf("time digit %d: tile $%02X, want $%02X", i, c.VRAM[0x3827+i], w)
+		}
+	}
+	c.RAM[0x0E4], c.RAM[0x0E3] = 0x99, 0x50
+	c.AddTime()
+	if c.RAM[0x0E4] != 0x99 || c.RAM[0x0E3] != 0x99 {
+		t.Errorf("cap: got %02X%02X, want 9999", c.RAM[0x0E4], c.RAM[0x0E3])
+	}
+	// Play keeps running with the extra time.
+	for i := 0; i < 500; i++ {
+		c.Interrupt()
+	}
+	if c.RAM[0x000] != 11 {
+		t.Errorf("state %d after adding time", c.RAM[0x000])
+	}
+}
