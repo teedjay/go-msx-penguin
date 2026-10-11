@@ -1,7 +1,7 @@
 # Porting an MSX cartridge ROM to native Go: project plan
 
 Intended as the `CLAUDE.md` for a new ROM-port project. It is distilled from
-two completed ones (both 16KB MSX1 cartridges, fully ported and playable).
+three completed ones (all 16KB MSX1 cartridges, fully ported and playable).
 Every rule below exists because something went wrong without it, or because
 it is the thing that actually caught the bug. Where a rule cost real rework,
 the story is kept: a rule with its scar attached gets followed.
@@ -22,6 +22,14 @@ the second project this reached a byte-for-byte match over tens of thousands
 of ticks of real play. It found bugs that static reading and screenshots
 never would have, and it named each one's address. See Phase 1, "The
 reference oracle", and Phase 5.
+
+**The third port's headline lessons:** place nested interrupts where the
+original took them (counted in VRAM writes), or long ticks will never
+match; when the asset lookup panics, ask the oracle before "fixing"
+anything, because four times out of four it was genuine original
+behaviour; and verify every layer you ship, audio output included, against
+the original, not just the layer the comparator covers. The third port
+matched byte for byte over a 41,821-tick game through stage 7.
 
 ---
 
@@ -70,9 +78,12 @@ over. Roughly in this order:
 | `cmd/gfxpreview`, `cmd/vramview` | Render byte ranges or raw VRAM dumps as tile and sprite sheets, through the shared renderer. |
 | `internal/msxrender` + `cmd/screenshot` | **The most valuable visual tool.** See "One renderer" below. |
 | `scripts/refdump.tcl` + `cmd/refcompare` | **The most valuable tool overall.** See "The reference oracle" below. Build it as soon as the boot path is ported. |
-| `cmd/sndpreview` | Once you reach audio: render a sound id to WAV through the ported sequencer and a PSG model, so you can check sounds without a window. |
+| `cmd/sndpreview` | Once you reach audio: render a sound id to WAV through the ported sequencer and a PSG model, so you can check sounds without a window. Give it a `-trace` mode that renders the game's audio over a reference trace's interrupts, for comparison with the original's (Phase 5, "Audio"). |
+| `cmd/disasm -reach A,B,...` | Lists every routine reachable from a set of roots, with the instruction count. Use it to scope a porting step ("boot through title: 40 routines, 779 instructions") and to check nothing is left. |
+| `cmd/keygen`, `cmd/keysearch`, `cmd/tracecov` | Scripted-input schedules, a search that finds good play on the port, and a coverage report over a set of traces. See Phase 5, "Coverage". |
+| `cmd/audiocmp` + `scripts/refaudio.tcl` | The original's audio recorded by openMSX, compared window by window with the port's. See Phase 5, "Audio". |
 
-### Disassembler lessons from the second project
+### Disassembler lessons from the second and third projects
 
 - **Grow inline jump tables one entry at a time.** For a `CALL trampoline`
   followed by `DW` entries, add a single entry, run the full descent to
@@ -95,6 +106,22 @@ over. Roughly in this order:
 - A "data reference" in the gap report may be a VRAM address the VDP masks
   (`LD DE,$7800` meant `$3800`) feeding a fall-through into a fill routine.
   Read the code around a surprising reference before classifying the target.
+- *(Third project)* **The `PUSH` continuation rule has false positives.**
+  `LD HL,table / PUSH HL / ... / POP HL` pushes a data pointer, and
+  following it as code decoded a run of graphics as instructions until it
+  collided with real code. Decide by simulating the stack forward from the
+  `PUSH` (count pushes and pops, follow unconditional jumps): popped before
+  any `RET` or `JP (rr)`, it is data; still on the stack there, it is a
+  continuation; anything else (`EX (SP),HL`, `LD SP`), report it for a
+  human.
+- *(Third project)* **A `JP (HL)` whose target is `table + A` may jump into
+  code, not through pointers.** `$49B5` jumped to `$49B6 + 0/4/8/12`: four
+  4-byte stubs (`LD A,n / JR common`) that the gap report showed as 19
+  bytes of data. Peek every gap next to a `JP (HL)`.
+- **Check "dead" code is dead.** Unreferenced code (no `CALL`/`JP`) may
+  still be reached through a pointer. Search the whole ROM for its address
+  as a 16-bit word before calling it dead; the third project had three
+  genuinely dead routines, all development leftovers.
 
 ### One renderer, shared, with a headless way to use it
 
@@ -161,6 +188,35 @@ executes Z80 code. Set it up as soon as the boot path is ported:
   and render it with your own renderer instead, which is better anyway.
   macOS has no `timeout`, so run openMSX in the background with a watchdog
   loop. Several instances can record in parallel.
+- *(Third project)* **Interrupts can fire during INIT.** C-BIOS routines
+  (`WRTVDP`, `SETWRT` and the game's own VRAM fill) re-enable interrupts,
+  so the handler ran its per-interrupt work twice before INIT finished.
+  Write a header with the interrupt count at INIT's final `EI`, and have
+  the port's boot run those interrupts where they can have happened.
+- *(Third project)* **Place nested interrupts where the original took
+  them, counted in VRAM writes.** Replaying a long tick's nested
+  interrupts after the tick broke at the real-game start: a 14-frame load
+  ended by starting a tune, so in the original the sound driver ran 13
+  times on the old state, and in the port 13 times on the new one. VRAM
+  write sequences run with interrupts disabled and re-enable them right
+  after their last write, so "VRAM writes so far this tick" (a watchpoint
+  on `write_io 0x98`) pins every nested interrupt between the right two
+  writes. The port counts its own writes and runs each interrupt
+  immediately after the write that reaches its count. This also
+  reproduces, for free, the original's VDP-address corruption when an
+  interrupt's sprite writes land inside an RLE stream that runs with
+  interrupts enabled.
+- *(Third project)* **openMSX Tcl traps that fail silently:** in a
+  `read_mem` watchpoint command, `$::wp_last_value` is unset, so the
+  command errors and logs nothing; instruction fetches also trigger
+  `read_mem` watchpoints; and globals named `::keys` or `::t` broke a
+  script without a word. Prefix every global. **Validate a probe on a
+  known positive first**: a probe that reports nothing is not evidence.
+  One "the original never reads this" conclusion was drawn from a broken
+  probe and was wrong. Logging registers from breakpoints is the most
+  reliable probe.
+- *(Third project)* Make the comparator recover engine panics and report
+  them as "tick N: panic", with the game package's stack frames.
 
 ## Phase 2: map the ROM before porting
 
@@ -219,6 +275,20 @@ executes Z80 code. Set it up as soon as the boot path is ported:
   arithmetic. A read of something never extracted fails loudly instead of
   returning a plausible zero. In the second project that panic is what
   turned a silent run-off-the-map bug into an obvious crash with an address.
+- *(Third project)* **When `romByte` panics, ask the oracle before you
+  change anything.** It happened four times, and each was genuine
+  original behaviour: the demo input reader ran past its table into two
+  code bytes; a collision scan indexed a 5-entry table with any RAM byte
+  (through a pointer bug), reading code up to 510 bytes on; after a game
+  over the demo reader read the BIOS at `$0000`; and the last sound's stop
+  byte was the first byte of the `$FF` fill. Confirm each with a
+  breakpoint that logs the pointer, then extend the manifest with a
+  documented entry. When the index can be any byte, declare the whole
+  reachable range at once rather than one panic at a time.
+- *(Third project)* **Streams share tails and are reused mirrored.** One
+  stream is decoded both normally and bit-reversed to a second
+  destination, and several entry points start inside another stream and
+  decode its tail. Tight packing still holds; record each entry point.
 - Overlaps are allowed when the original does them. The second ROM copied
   `$180` bytes of font into VRAM, the last `$28` of which were its text
   table. The asset keeps the full length; the text is a separate entry.
@@ -305,6 +375,16 @@ The rules that would have prevented them:
 6. When a bug makes no sense, re-read the raw bytes of the routine rather
    than re-reading your Go, or ask the oracle (a watchpoint) who wrote the
    byte.
+7. *(Third project)* **Pass the stale register explicitly.** Helpers that
+   `SET`/`RES` bits in `(HL)` were called with whatever `HL` the caller
+   last loaded: four different addresses across call sites. Give such
+   helpers an `hl` parameter rather than a fixed address. Likewise a
+   routine whose exit path decides an `HL` that its caller then writes
+   through must return it.
+8. *(Third project)* **Review your translation against the listing before
+   compiling.** One pass over freshly written Go found three bugs:
+   `LD (HL),0 / LDIR` ported as the LDIR first (the clear idiom needs the
+   seed byte stored first), and an `RRA / JR NC` with its sense reversed.
 
 ### Z80 and MSX semantics that bit us
 
@@ -358,6 +438,15 @@ The rules that would have prevented them:
   audio output. Port it as register writes into a PSG register array, and
   add a separate chip model (tones, noise, mixer, volume table, envelope)
   later for output.
+- *(Third project)* **`RRA` four times is a 9-bit rotate**, not a shift by
+  four: the carry goes into bit 7 each time. It only mattered for unused
+  bits there, but model it with an explicit carry.
+- *(Third project)* **Confirm what a variable means by measuring it, not
+  from one routine.** The speed variable was a period (lower is faster),
+  so "up" accelerated. Its comment said the opposite. The comparator
+  matched either way, but the input tools built on the wrong meaning
+  held the brake in every scripted game, and none reached a stage clear
+  until the meaning was measured.
 - **The BIOS port-number bytes** at `$0006`/`$0007` may be used swapped
   relative to the documentation. It is harmless on real machines, where both
   are `$98`; just don't let it confuse your VDP reading.
@@ -415,6 +504,43 @@ trace's interrupt counts show this: in the second ROM a stage load spanned
 106 frames and some gameplay ticks spanned 2. A port that runs one tick per
 frame plays those moments faster. Decide deliberately how to model it, and
 document the choice as an open issue until you do.
+*(Third project)* A cost model fitted to the traces settled it:
+**cycles ≈ 200 per VRAM address set-up + 66 per VRAM write**, against
+59,659 cycles per frame, predicted the frame count of 76,899 of 76,918
+recorded ticks. Writes alone did not fit, because a routine that sets the
+address for every byte through the BIOS costs several times more per byte
+than a streamed copy. The frontend keeps the busy flag set for the frames
+a tick owes and runs the per-interrupt work in them, so loads take their
+time and the music keeps playing.
+
+**Coverage, and reaching what random play cannot.** *(Third project)*
+Write a coverage report over a set of traces: states and sub-states seen,
+plus a list of RAM conditions (jumping, fallen, knocked, wind, later
+stages, time out). Random input covered falls and knocks but never cleared
+a stage. **Search for good input on the port, then verify it on the
+original**: try random 32-tick input chunks on a copy of the console and
+keep the one that covers the most distance without falling. It found
+schedules through stage 7 in seconds; recorded on the original, all 41,821
+ticks matched. The port is only the search engine, never the judge.
+
+**Audio.** *(Third project)* The comparator proves the PSG registers, not
+what reaches the speakers. The first frontend applied the registers from
+the audio thread once per `Read`, which the toolkit calls in large chunks:
+the chip saw the music a few times a second, the music was garbled and
+short sound effects vanished. The user heard it at once. Render each game
+frame's samples on the game thread from that frame's registers, through
+one function shared by the window and a headless renderer. Then **check
+the output against the original's**: openMSX records audio
+(`record start -audioonly`), and a comparison per 1/60 s window (aligned
+by loudness envelope) of "sounding or not" and "is each side's strongest
+frequency present in the other's spectrum" agreed on 98.5% of windows.
+Compare presence, not the single peak: in a chord at equal volumes the
+loudest note depends on each output stage's filtering.
+
+**Make the frontend checkable headless too.** *(Third project)* Give the
+playable frontend `-press frame:KEY,...` (scripted keys) and `-shot
+file.png -shotframe N` (save the composited window and quit). Overlays and
+cheats can then be checked from a still of the real window.
 
 **Commit after each logical change**, once build, vet and tests are clean.
 Never commit ROM-derived files. If `git status` offers them, `.gitignore` is
@@ -447,6 +573,17 @@ When an extension must change game state (a level-select cheat):
   against what the game actually builds.
 - Reproduce a user-reported extension bug headlessly with a failing test
   first, then fix.
+- *(Third project)* **Verify a derived shortcut against the real thing.**
+  A level-select cheat must reproduce what playing the skipped stages
+  leaves behind. Everything a stage set-up clears is rebuilt anyway, so
+  list only what lies outside that range (stage number, course index, a
+  wind-schedule index advanced by every wind on the way). Derive them from
+  the ROM's own tables, and compare with the values the original actually
+  had at each real stage start in a long trace.
+- *(Third project)* **Check the feature exists before building it.** A
+  request for a "flashing flag" bonus came from another version of the
+  game; the ported code showed this cartridge has no such thing. Say so and
+  offer the faithful option and the new-extension option.
 
 ---
 
@@ -469,6 +606,10 @@ When an extension must change game state (a level-select cheat):
   and which are only translated.
 - Distinguish, out loud, between a bug in the port and faithful reproduction
   of an original quirk. Both are common. Say which you think it is and why.
+- *(Third project)* **When the user reports a symptom in a layer you have
+  not verified against the original, look there first.** "The music is
+  wrong" came with every PSG register byte proven correct; the fault was
+  in the frontend's audio thread, the one layer the comparator never saw.
 
 ## Documentation hygiene
 
@@ -510,4 +651,8 @@ When an extension must change game state (a level-select cheat):
    as the regression baseline.
 7. Read the whole game tick, port it, and drive the comparator to a match
    on the demo, then on scripted-input games. Then hand it to the user to
-   play.
+   play. *(Third project: the whole tick, about 2,100 instructions, matched
+   the 4000-tick attract trace as soon as two manifest gaps were filled.)*
+8. Scripted-input traces with the nested-interrupt placement, a coverage
+   report, input search for the stages random play cannot reach, then the
+   frontend with tick pacing and audio checked against the original's.
