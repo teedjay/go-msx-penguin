@@ -68,4 +68,4 @@ endorsed by the rights holder of the original game.
   excluded from version control.
 - The engine executes no original code.
 
-Rights holders with concerns are invited to open an issue. See `NOTICE`.
+Rights holders with concerns are invited to open an issue. See [NOTICE](NOTICE).
