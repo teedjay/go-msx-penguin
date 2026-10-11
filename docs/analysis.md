@@ -246,6 +246,27 @@ text via `$4583` from `$57DE`, `$5793`, `$57D3`, `$5756`, `$5785`.
 - After a game over, the demo input reader runs with `$E0EC` = 0 and
   reads the BIOS at `$0000` (`$F3`, `DI`). The port maps those two bytes.
 
+## Levels
+
+Ten courses, repeating from stage 11. Distance from the table at `$4AAE`
+(by `$E0E8` at the stage start); destination name from the text table at
+`$5589`, printed at the stage end after the clear has advanced the course
+index, so stage n runs to entry n mod 10 (confirmed on the original's
+screens). `game.Destination` decodes them.
+
+| Stage | Destination | Distance |
+| --- | --- | --- |
+| 1 | Australia | 1200 km |
+| 2 | Australia | 1500 km |
+| 3 | France | 1200 km |
+| 4 | New Zealand | 1500 km |
+| 5 | South Pole (南極点, bonus scene) | 1700 km |
+| 6 | USA | 1100 km |
+| 7 | USA | 1200 km |
+| 8 | Argentina | 1200 km |
+| 9 | United Kingdom | 500 km |
+| 10 | Japan | 2600 km |
+
 ## Extensions (not in the original)
 
 - **Level-select cheat** (2026-10-11): `internal/game/cheat.go`, hooked

@@ -118,3 +118,16 @@ func TestAddTime(t *testing.T) {
 		t.Errorf("state %d after adding time", c.RAM[0x000])
 	}
 }
+
+func TestDestination(t *testing.T) {
+	want := []string{"AUSTRALIA", "AUSTRALIA", "FRANCE", "NEW ZEALAND", "SOUTH POLE",
+		"USA", "USA", "ARGENTINA", "UNITED KINGDOM", "JAPAN"}
+	for i, w := range want {
+		if got := Destination(i + 1); got != w {
+			t.Errorf("stage %d: %q, want %q", i+1, got, w)
+		}
+	}
+	if Destination(11) != "AUSTRALIA" {
+		t.Errorf("stage 11: %q", Destination(11))
+	}
+}

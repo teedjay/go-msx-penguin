@@ -1,5 +1,7 @@
 package game
 
+import "go-msx-penguin/assets"
+
 // Level-select cheat. Not part of the original: an extension over the
 // port, hooked at one point (state8sub3, right after newGame) and
 // inactive unless StartStage is set, so every reference trace still
@@ -74,4 +76,30 @@ func (c *Console) AddTime() bool {
 	c.RAM[0x0E4] = hi
 	c.printTime()
 	return true
+}
+
+// Destination returns the name of the station stage n runs to (n from
+// 1; levels repeat every 10), decoded from the game's own text table at
+// $5589 that $552F prints at the stage end. That table is indexed by the
+// course index after the clear has advanced it, so stage n shows entry
+// n mod 10 (checked on the original's screens: stage 1 ends at
+// AUSTRALIA, stage 5 at the South Pole). Font bytes are ASCII - $20,
+// except a few tiles drawn specially.
+func Destination(n int) string {
+	special := map[byte]string{
+		0x0F: " ", 0xC9: "F", 0xCA: "W", 0xCB: "Z", // letter tiles
+		0xCE: "SOUTH POLE", 0xCF: "", 0xD0: "", 0xD1: "", // the kanji 南極点
+	}
+	rd := assets.ROMByte
+	p := uint16(rd(0x5589+uint16(2*(n%10)))) | uint16(rd(0x558A+uint16(2*(n%10))))<<8
+	var s []byte
+	for a := p + 2; rd(a) != 0xFF; a++ { // skip the VRAM address word
+		b := rd(a)
+		if v, ok := special[b]; ok {
+			s = append(s, v...)
+		} else if b != 0x20 { // $20: the dash either side of the name
+			s = append(s, b+0x20)
+		}
+	}
+	return string(s)
 }

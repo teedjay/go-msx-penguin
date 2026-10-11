@@ -8,6 +8,8 @@ import (
 	"github.com/hajimehoshi/ebiten/v2/text/v2"
 	"github.com/hajimehoshi/ebiten/v2/vector"
 	"golang.org/x/image/font/basicfont"
+
+	"go-msx-penguin/internal/game"
 )
 
 // cheat is the cheats' frontend half: letter keys on the title choose
@@ -76,9 +78,9 @@ func (ch *cheat) draw(screen *ebiten.Image, scale float64) {
 	case ch.noteFrames > 0:
 		msg = ch.note
 	case ch.level == 1:
-		msg = "LEVEL 1 (NORMAL)"
+		msg = "LEVEL 1 (NORMAL) - " + game.Destination(1)
 	case ch.level > 1:
-		msg = fmt.Sprintf("CHEAT: START AT LEVEL %d", ch.level)
+		msg = fmt.Sprintf("CHEAT: START AT LEVEL %d - %s", ch.level, game.Destination(ch.level))
 	default:
 		return
 	}
