@@ -1,0 +1,72 @@
+package game
+
+import "testing"
+
+// stageStarts are the carried-over variables the real game had on
+// entering state 9 for stages 1-7, read from a 41821-tick reference
+// trace of the original playing through to stage 7 (cmd/keysearch
+// schedule): $E0E0, $E0E1, $E0E2, $E0E8.
+var stageStarts = [][4]byte{
+	{0x01, 0, 0, 0},
+	{0x02, 1, 6, 1},
+	{0x03, 2, 13, 2},
+	{0x04, 3, 19, 3},
+	{0x05, 4, 26, 4},
+	{0x06, 5, 34, 5},
+	{0x07, 6, 39, 6},
+}
+
+func TestSkipStageMatchesRealStageStarts(t *testing.T) {
+	for n, want := range stageStarts {
+		c := New()
+		c.newGame()
+		c.StartStage = n + 1
+		c.applyStartStage()
+		got := [4]byte{c.RAM[0x0E0], c.RAM[0x0E1], c.RAM[0x0E2], c.RAM[0x0E8]}
+		if got != want {
+			t.Errorf("stage %d: got %v, want %v", n+1, got, want)
+		}
+		if c.StartStage != 0 {
+			t.Errorf("stage %d: request not cleared", n+1)
+		}
+	}
+}
+
+// TestCheatStartsAtStage starts real games through the title for every
+// selectable stage (A-Z), holding up and jumping now and then, and
+// checks the stage shown and that play runs without leaving the ROM data
+// the manifest provides.
+func TestCheatStartsAtStage(t *testing.T) {
+	for stage := 1; stage <= 26; stage++ {
+		c := New()
+		c.Boot(2)
+		for i := 0; i < 250; i++ {
+			c.Interrupt()
+		}
+		c.StartStage = stage
+		c.Keys[0] &^= 0x04 // 2: keyboard play
+		for i := 0; i < 3; i++ {
+			c.Interrupt()
+		}
+		c.Keys[0] |= 0x04
+		c.Keys[8] &^= 0x20 // hold up (accelerate)
+		for i := 0; c.RAM[0x000] != 11 && i < 3000; i++ {
+			c.Interrupt()
+		}
+		if c.RAM[0x000] != 11 {
+			t.Fatalf("stage %d: play did not start (state %d)", stage, c.RAM[0x000])
+		}
+		bcd := byte(stage/10)<<4 | byte(stage%10)
+		if c.RAM[0x0E0] != bcd || c.RAM[0x0E1] != byte((stage-1)%10) {
+			t.Errorf("stage %d: $E0E0=%02X $E0E1=%d", stage, c.RAM[0x0E0], c.RAM[0x0E1])
+		}
+		for i := 0; i < 2000; i++ {
+			if i%40 == 0 {
+				c.Keys[8] &^= 0x01 // jump
+			} else if i%40 == 3 {
+				c.Keys[8] |= 0x01
+			}
+			c.Interrupt()
+		}
+	}
+}

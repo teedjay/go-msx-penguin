@@ -37,9 +37,15 @@ go run ./cmd/play
 
 On the title, press **1** for joystick (a gamepad) or **2** for
 keyboard. Keyboard: **up** accelerates, **down** brakes, **left/right**
-steer, **space** jumps. **Esc** quits. `-record file.keys` saves your
+steer, **space** jumps. **Esc** quits. **Level select:** on the title screen press a letter before starting,
+**A** for level 1 (normal) up to **Z** for level 26 (the ten courses
+repeat from level 11). The choice shows in the top right corner.
+`-level N` preselects it from the command line.
+
+`-record file.keys` saves your
 key presses in a form that can be replayed into the original (see
-`CLAUDE.md`) to check the port against it.
+`CLAUDE.md`) to check the port against it; a game started with the
+level select cannot be replayed into the original.
 
 ## Legal
 

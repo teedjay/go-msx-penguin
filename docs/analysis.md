@@ -246,6 +246,19 @@ text via `$4583` from `$57DE`, `$5793`, `$57D3`, `$5756`, `$5785`.
 - After a game over, the demo input reader runs with `$E0EC` = 0 and
   reads the BIOS at `$0000` (`$F3`, `DI`). The port maps those two bytes.
 
+## Extensions (not in the original)
+
+- **Level-select cheat** (2026-10-11): `internal/game/cheat.go`, hooked
+  once in `state8sub3` after `newGame`, inactive unless
+  `Console.StartStage` > 1 (all traces still match). It advances `$E0E0`,
+  `$E0E1`, `$E0E8` and the wind index `$E0E2` as playing and clearing the
+  skipped stages does; the derivation matches the real stage starts 1-7
+  of a 41821-tick trace (`cheat_test.go`), and games started at every
+  level 1-26 play without leaving the manifest. Score and the per-course
+  time-left table start fresh. The frontend (`cmd/play/cheat.go`) takes
+  letters A-Z on the title and draws the choice as an overlay, outside
+  the MSX picture.
+
 ## Dead code
 
 `$4401`, `$4442`, `$48AE`: no CALL/JP and no 16-bit word in the ROM points

@@ -44,6 +44,10 @@ type Console struct {
 	irqSched []int // vwrites values at which nested interrupts arrive
 	inIRQ    bool
 
+	// StartStage, when above 1, makes the next game started from the
+	// title begin at that stage (level-select cheat, see cheat.go).
+	StartStage int
+
 	// OnInterrupt, if set, runs at the end of every interrupt's
 	// per-interrupt work (tools that render audio per interrupt).
 	OnInterrupt func()

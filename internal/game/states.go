@@ -112,6 +112,9 @@ func (c *Console) state8sub3() {
 		return
 	}
 	c.newGame()
+	if c.StartStage > 1 { // extension hook: level-select cheat
+		c.applyStartStage()
+	}
 	c.nextState43EE()
 }
 

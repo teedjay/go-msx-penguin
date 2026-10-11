@@ -7,6 +7,12 @@
 // keyboard. Keyboard: cursor keys (up accelerates, down brakes,
 // left/right steer), space jumps. Esc quits.
 //
+// Level-select cheat: on the title screen press a letter, A for level 1
+// (normal) to Z for level 26, before starting the game. The choice shows
+// in the top right corner, drawn by this frontend over the picture (not
+// through the MSX video chip). A cheated game cannot be replayed into the
+// original from a -record file.
+//
 // A recorded schedule replays into the original and the port:
 //
 //	scripts/refdump.sh /tmp/me.trace N /tmp/me.keys
@@ -18,7 +24,9 @@ import (
 	"flag"
 	"fmt"
 	"image"
+	"image/png"
 	"log"
+	"math"
 	"os"
 	"sync"
 	"time"
@@ -51,18 +59,37 @@ var keyMap = []struct {
 type app struct {
 	c      *game.Console
 	screen *image.RGBA
-	snd    *sound
-	rec    *bufio.Writer
-	recF   *os.File
+	frame  *ebiten.Image // the MSX picture, scaled into the window
+	cheat  cheat
+
+	frames    int
+	shot      string
+	shotFrame int
+	shotDone  bool
+	snd       *sound
+	rec       *bufio.Writer
+	recF      *os.File
 }
 
 func main() {
 	record := flag.String("record", "", "write the key schedule to this file")
 	scale := flag.Int("scale", 3, "window scale")
+	level := flag.Int("level", 0, "preselect the level-select cheat (1-26), as if its letter were pressed on the title")
+	shot := flag.String("shot", "", "save the window image (overlay included) to this PNG at -shotframe and quit")
+	shotFrame := flag.Int("shotframe", 300, "frame for -shot")
 	flag.Parse()
 
-	a := &app{c: game.New(), screen: image.NewRGBA(image.Rect(0, 0, msxrender.Width, msxrender.Height))}
+	a := &app{
+		c:      game.New(),
+		screen: image.NewRGBA(image.Rect(0, 0, msxrender.Width, msxrender.Height)),
+		frame:  ebiten.NewImage(msxrender.Width, msxrender.Height),
+	}
 	a.c.Boot(2)
+	if *level > 0 {
+		a.cheat = cheat{level: *level, started: -1}
+		a.c.StartStage = *level
+	}
+	a.shot, a.shotFrame = *shot, *shotFrame
 	if *record != "" {
 		f, err := os.Create(*record)
 		if err != nil {
@@ -91,7 +118,12 @@ func (a *app) Update() error {
 	if ebiten.IsKeyPressed(ebiten.KeyEscape) {
 		return ebiten.Termination
 	}
+	if a.shotDone {
+		return ebiten.Termination
+	}
+	a.frames++
 	a.input()
+	a.cheat.update(a)
 	a.c.Frame()
 	a.snd.frame(a.c.PSG)
 	return nil
@@ -160,10 +192,39 @@ func joystick() byte {
 
 func (a *app) Draw(screen *ebiten.Image) {
 	msxrender.RenderInto(a.screen, a.c.VRAM[:], a.c.Regs)
-	screen.WritePixels(a.screen.Pix)
+	a.frame.WritePixels(a.screen.Pix)
+	// Scale the MSX picture to fit the window, keeping its aspect.
+	sw, sh := screen.Bounds().Dx(), screen.Bounds().Dy()
+	k := math.Min(float64(sw)/msxrender.Width, float64(sh)/msxrender.Height)
+	var op ebiten.DrawImageOptions
+	op.GeoM.Scale(k, k)
+	op.GeoM.Translate((float64(sw)-k*msxrender.Width)/2, (float64(sh)-k*msxrender.Height)/2)
+	screen.DrawImage(a.frame, &op)
+	a.cheat.draw(screen, k)
+	if a.shot != "" && a.frames >= a.shotFrame && !a.shotDone {
+		a.saveShot(screen)
+	}
 }
 
-func (a *app) Layout(int, int) (int, int) { return msxrender.Width, msxrender.Height }
+// saveShot writes the composited window image to the -shot file.
+func (a *app) saveShot(screen *ebiten.Image) {
+	b := screen.Bounds()
+	img := image.NewRGBA(b)
+	screen.ReadPixels(img.Pix)
+	f, err := os.Create(a.shot)
+	if err == nil {
+		err = png.Encode(f, img)
+		f.Close()
+	}
+	if err != nil {
+		log.Print(err)
+	}
+	a.shotDone = true
+}
+
+// Layout uses the window's own pixels, so the overlay is drawn at full
+// resolution over the scaled picture.
+func (a *app) Layout(w, h int) (int, int) { return w, h }
 
 // sound turns the game's PSG registers into audio in step with game
 // frames. Each frame the game thread applies that frame's registers and

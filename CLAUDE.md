@@ -41,6 +41,10 @@ essentials:
 - Graphics are RLE (`$454C`, `internal/rle`); streams can share tails.
 - Toolchain: Go 1.27, openMSX 21 (Homebrew) with `C-BIOS_MSX1_JP`.
 
+Extensions sit over the port (Phase 6): the level-select cheat is
+`internal/game/cheat.go` (one hook in `state8sub3`, inactive unless
+`StartStage` > 1) plus `cmd/play/cheat.go` for keys and overlay.
+
 ### Commands
 
 ```bash
@@ -55,7 +59,8 @@ go run ./cmd/refcompare -trace /tmp/play1.trace -keys /tmp/play1.keys
 go run ./cmd/keysearch -seed 1 -stages 5 > /tmp/win1.keys   # reach stage clears
 go run ./cmd/tracecov /tmp/*.trace                  # what the traces exercise
 go run ./cmd/sndpreview -id 0x92 -o /tmp/snd92.wav  # hear a sound headless
-go run ./cmd/play [-record /tmp/me.keys]            # the playable frontend
+go run ./cmd/play [-record /tmp/me.keys] [-level N]  # the playable frontend
+go run ./cmd/play -level 3 -shot /tmp/w.png -shotframe 300  # window still, overlay included
 scripts/refaudio.sh /tmp/ref.wav 3000 /tmp/win1.keys  # original's audio
 go run ./cmd/sndpreview -trace /tmp/win1.trace -keys /tmp/win1.keys -irqs 3000 -o /tmp/port.wav
 go run ./cmd/audiocmp /tmp/ref.wav /tmp/port.wav    # compare the two
