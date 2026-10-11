@@ -11,6 +11,12 @@ registers, every tick) over the attract demo and recorded keyboard games
 through stage 7. See `docs/analysis.md` for what has been verified and
 `CLAUDE.md` for how the work is done.
 
+![The South Pole station after clearing stage 5, with the penguin flag at the top](screenshots/06-stage5-clear.png)
+
+*The South Pole station after clearing stage 5, flag at the top. Rendered
+by the port (`go run ./cmd/screenshot`), replaying a key schedule that was
+checked against the original tick by tick.*
+
 ## Requirements
 
 - Go 1.27 or newer
