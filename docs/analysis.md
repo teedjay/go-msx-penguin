@@ -28,14 +28,6 @@ clear, meaning inferred), **Low** (plausible guess).
   via PSG R14) is translated but no trace drives a joystick yet.
 - INIT takes 2 interrupts under C-BIOS. Real MSX BIOS routines may give a
   different count; the frontend assumes 2. (Low)
-- `$79EA` is presumed to be the sound driver (per interrupt, when state ≠
-  0). Unconfirmed. Find out whether game logic reads its RAM.
-- No `LD A,R` in the ROM (byte scan and listing). Find what the game uses
-  for randomness, if anything.
-- `$4EC2-$4ED5` is declared data in `docs/disasm.cfg` without having been
-  traced.
-- Graphics streams other than the title/common set (`$5834`) are listed
-  below but not yet decoded and checked.
 
 ## The ROM
 
@@ -116,8 +108,8 @@ IRQ on, backdrop 1.
 | Name table | `$3800` |
 | Sprite attributes | `$3B00` |
 
-The RAM shadow of the registers is at `$E038-$E03F`. Not yet known whether
-any register changes later.
+The RAM shadow of the registers is at `$E038-$E03F`. The registers never
+change after INIT.
 
 VRAM helpers: `$48A5` writes A to VRAM[DE]; `$48B7` / `$48C6` set up
 write / read. **The port bytes are used swapped** relative to the BIOS
@@ -137,7 +129,7 @@ bit-reverses every byte read (`$4573`). Ported in `internal/rle`.
 Streams can **share tails**: `$5DA0` is a suffix of the `$5D6A` stream,
 `$5C15` of `$5885`; both decode to the same terminator.
 
-Other formats, not yet traced: `$4512` (name-table writer with `$E0+`
+Other formats (ported, `internal/game/screen.go`): `$4512` (name-table writer with `$E0+`
 position codes), `$44F1` (fill-based), `$4583` (text: destination word,
 bytes until `$FF`, `$FE` = new destination).
 
@@ -154,7 +146,7 @@ Per Screen 2 third (DE = `$0000`, `$0800`, `$1000`):
   then the stream that follows its terminator, `$5C37-$5D69` (376). Total
   `$700`, ending tight at `$5D6A`.
 
-### Other decoder call sites (not yet decoded)
+### Other decoder call sites (decoded at runtime, verified via VRAM)
 
 `$5DAC`, `$6249`, `$6710`, `$54E1`, `$552F`, `$5538`, `$5555`, `$503D`;
 text via `$4583` from `$57DE`, `$5793`, `$57D3`, `$5756`, `$5785`.
@@ -201,6 +193,22 @@ text via `$4583` from `$57DE`, `$5793`, `$57D3`, `$5756`, `$5785`.
   were then recorded on the original: 23101 ticks (4 clears) and 41821
   ticks (6 clears, bonus scene, stage 7) all match. `cmd/tracecov`
   reports what a set of traces exercises.
+
+## Resolved questions (2026-10-11)
+
+- `$79EA` is the sound driver (ported, matched in every trace). Game
+  logic reads its RAM: states 13 and 14 wait on channel 0's id (`$E012`)
+  and state 14 on channel 1's counter (`$E01A`).
+- There is no randomness. No `LD A,R`; object placement comes from the
+  per-stage course tables, and the only alternation without input is the
+  `$E185` counter in `$75C9`. Every trace matches with no entropy fed in.
+- `$4EC2-$4ED5` holds the knocked-aside X offsets (`$4E3E`).
+- The VDP registers never change after INIT: `WRTVDP` is only called from
+  `$44A3`.
+- All graphics streams are decoded at runtime by the port from Raw
+  manifest entries, as the original does, and checked through VRAM by the
+  comparator. Only the common set has decoded manifest entries, for
+  inspection.
 
 ## Corrections
 
